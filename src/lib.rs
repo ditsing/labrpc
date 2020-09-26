@@ -71,19 +71,20 @@ impl Network {
         client: ClientIdentifier,
         request: RequestMessage<'_>,
     ) -> Result<ReplyMessage> {
-        // TODO: acquire a lock.
         self.increase_rpc_count();
-        let server_name = self
-            .clients
-            .get(&client)
-            .map(|(enabled, server)| if !enabled { None } else { Some(server) })
-            .flatten()
-            .ok_or_else(|| {
+        let (enabled, server_name) =
+            self.clients.get(&client).ok_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::NotConnected,
-                    format!("Client {} is not connected", client),
+                    format!("Client {} is not connected.", client),
                 )
             })?;
+        if !enabled {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                format!("Client {} is disabled.", client),
+            ));
+        }
         let server = self.servers.get(server_name).ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -93,6 +94,8 @@ impl Network {
                 ),
             )
         })?;
+
+        // Simulates the copy from network to server.
         let data = Bytes::copy_from_slice(request.arg);
         server.clone().dispatch(request.service_method, data).await
     }
