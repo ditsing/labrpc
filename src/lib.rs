@@ -15,15 +15,16 @@ use std::time::{Duration, Instant};
 type Result<T> = std::io::Result<T>;
 
 // Messages passed on network.
-struct RequestMessage {
+struct RpcOnWire {
     client: ClientIdentifier,
     server: ServerIdentifier,
     service_method: String,
-    arg: Bytes,
+    request: RequestMessage,
 
     reply_channel: Sender<Result<ReplyMessage>>,
 }
 
+type RequestMessage = Bytes;
 type ReplyMessage = Bytes;
 
 type ServerIdentifier = String;
@@ -34,7 +35,7 @@ struct Client {
     client: ClientIdentifier,
     server: ServerIdentifier,
 
-    request_bus: Sender<RequestMessage>,
+    request_bus: Sender<RpcOnWire>,
 }
 
 struct Network {
@@ -48,8 +49,8 @@ struct Network {
     servers: HashMap<ServerIdentifier, Arc<Server>>,
 
     // Network bus
-    request_bus: Sender<RequestMessage>,
-    request_pipe: Option<Receiver<RequestMessage>>,
+    request_bus: Sender<RpcOnWire>,
+    request_pipe: Option<Receiver<RpcOnWire>>,
 
     // Closing signal.
     keep_running: bool,
@@ -143,7 +144,7 @@ impl Network {
                 }
 
                 match rx.try_recv() {
-                    Ok(request) => {
+                    Ok(rpc) => {
                         let network_clone = network.clone();
                         thread_pool.spawn_ok(async move {
                             let server_result = {
@@ -152,7 +153,7 @@ impl Network {
                                 );
                                 network.increase_rpc_count();
 
-                                network.dispatch(&request.client)
+                                network.dispatch(&rpc.client)
                             };
 
                             // Cannot use server_result.amp() here, since there
@@ -160,15 +161,15 @@ impl Network {
                             let reply = match server_result {
                                 Ok(server) => {
                                     // Simulates the copy from network to server.
-                                    let data = request.arg.clone();
+                                    let data = rpc.request.clone();
                                     server
-                                        .dispatch(request.service_method, data)
+                                        .dispatch(rpc.service_method, data)
                                         .await
                                 }
                                 Err(e) => Err(e),
                             };
 
-                            if let Err(_e) = request.reply_channel.send(reply) {
+                            if let Err(_e) = rpc.reply_channel.send(reply) {
                                 // TODO(ditsing): log and do nothing.
                             }
                         })

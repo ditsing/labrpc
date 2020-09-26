@@ -1,11 +1,10 @@
-use crate::Result;
-use bytes::Bytes;
+use crate::{ReplyMessage, RequestMessage, Result};
 use std::collections::hash_map::Entry::Vacant;
 use std::sync::Arc;
 
 pub trait RpcHandler {
     // Note this method is not async.
-    fn call(&self, data: Bytes) -> Bytes;
+    fn call(&self, data: RequestMessage) -> ReplyMessage;
 }
 
 struct ServerState {
@@ -30,8 +29,8 @@ impl Server {
     pub async fn dispatch(
         self: Arc<Self>,
         service_method: String,
-        data: Bytes,
-    ) -> Result<Bytes> {
+        data: RequestMessage,
+    ) -> Result<ReplyMessage> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let this = self.clone();
         this.thread_pool.spawn_ok(async move {
