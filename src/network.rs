@@ -8,7 +8,7 @@ use crate::Result;
 use crate::Server;
 use crate::{ClientIdentifier, RpcOnWire, ServerIdentifier};
 
-struct Network {
+pub struct Network {
     // Settings.
     reliable: bool,
     long_delays: bool,
@@ -48,8 +48,12 @@ impl Network {
         self.keep_running = false;
     }
 
-    pub fn make_connection(_server_name: ServerIdentifier) -> Client {
-        unimplemented!()
+    pub fn make_connection(&self, client: ClientIdentifier, server: ServerIdentifier) -> Client {
+        Client {
+            client,
+            server,
+            request_bus: self.request_bus.clone()
+        }
     }
 
     fn dispatch(&self, client: &ClientIdentifier) -> Result<Arc<Server>> {

@@ -47,7 +47,7 @@ impl Server {
             let response = match rpc_handler {
                 Some(rpc_handler) => Ok(rpc_handler.call(data)),
                 None => Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
+                    std::io::ErrorKind::InvalidInput,
                     format!(
                         "Method {} on server {} not found.",
                         service_method, self.name
