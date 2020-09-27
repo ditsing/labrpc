@@ -31,8 +31,6 @@ pub struct Network {
 }
 
 impl Network {
-    const SHUTDOWN_DELAY: Duration = Duration::from_micros(20);
-
     pub fn set_reliable(&mut self, yes: bool) {
         self.reliable = yes
     }
@@ -120,6 +118,8 @@ impl Network {
 
     const LONG_REORDERING_BASE_DELAY_MILLIS: u64 = 200;
     const LONG_REORDERING_RANDOM_DELAY_BOUND_MILLIS: u64 = 2000;
+
+    const SHUTDOWN_DELAY: Duration = Duration::from_micros(20);
 
     async fn delay_for_millis(milli_seconds: u64) {
         tokio_timer::delay_for(Duration::from_millis(milli_seconds)).await;
@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn rpc_count_works() {
+    fn test_rpc_count_works() {
         let network = make_network();
         assert_eq!(0, network.get_total_rpc_count());
 
