@@ -61,6 +61,18 @@ impl Network {
         }
     }
 
+    pub fn add_server(
+        &mut self,
+        server_name: ServerIdentifier,
+        server: Arc<Server>,
+    ) {
+        self.servers.insert(server_name, server);
+    }
+
+    pub fn remove_server(&mut self, server_name: &ServerIdentifier) {
+        self.servers.remove(server_name);
+    }
+
     fn dispatch(&self, client: &ClientIdentifier) -> Result<Arc<Server>> {
         let (enabled, server_name) =
             self.clients.get(client).ok_or_else(|| {
