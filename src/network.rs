@@ -25,6 +25,8 @@ pub struct Network {
 
     // Closing signal.
     keep_running: bool,
+    // Whether the network is active or not.
+    is_running: bool,
 
     // RPC Counter, using Cell for interior mutability.
     rpc_count: std::cell::Cell<usize>,
@@ -47,11 +49,16 @@ impl Network {
         self.keep_running = false;
     }
 
-    pub fn make_client(
+    pub fn is_running(&self) -> bool {
+        self.is_running
+    }
+
+    pub fn make_client<C: Into<ClientIdentifier>, S: Into<ServerIdentifier>>(
         &mut self,
-        client: ClientIdentifier,
-        server: ServerIdentifier,
+        client: C,
+        server: S,
     ) -> Client {
+        let (client, server) = (client.into(), server.into());
         self.clients.insert(client.clone(), (true, server.clone()));
         Client {
             client,
@@ -217,7 +224,10 @@ impl Network {
 
     pub fn run_daemon() -> Arc<Mutex<Network>> {
         let mut network = Network::new();
-        let rx = network.request_pipe.take().unwrap();
+        let rx = network
+            .request_pipe
+            .take()
+            .expect("Newly created network should have a rx.");
 
         let network = Arc::new(Mutex::new(network));
 
@@ -236,12 +246,14 @@ impl Network {
                 // trying to add / remove RPC servers, or change settings.
                 // Having a shutdown delay helps minimise lock holding.
                 if stop_timer.elapsed() >= Self::SHUTDOWN_DELAY {
-                    let locked_network = network
+                    let mut locked_network = network
                         .lock()
                         .expect("Network mutex should not be poisoned");
                     if !locked_network.keep_running {
+                        locked_network.is_running = false;
                         break;
                     }
+                    locked_network.is_running = true;
                     stop_timer = Instant::now();
                 }
 
@@ -285,6 +297,7 @@ impl Network {
             request_bus: tx,
             request_pipe: Some(rx),
             keep_running: true,
+            is_running: false,
             rpc_count: std::cell::Cell::new(0),
         }
     }
@@ -293,6 +306,7 @@ impl Network {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::make_echo_rpc;
 
     fn make_network() -> Network {
         Network::new()
@@ -305,5 +319,28 @@ mod tests {
 
         network.increase_rpc_count();
         assert_eq!(1, network.get_total_rpc_count());
+    }
+
+    #[test]
+    fn test_network_shutdown() {
+        let network = Network::run_daemon();
+        while !network.lock().unwrap().is_running() {
+            std::thread::sleep(Network::SHUTDOWN_DELAY)
+        }
+        let sender = {
+            let mut network = network.lock().unwrap();
+            let sender = network.request_bus.clone();
+            network.keep_running = false;
+            sender
+        };
+        while network.lock().unwrap().is_running() {
+            std::thread::sleep(Network::SHUTDOWN_DELAY)
+        }
+        let (rpc, _) = make_echo_rpc("client", "server");
+        let result = sender.send(rpc);
+        assert!(
+            result.is_err(),
+            "Network is shutdown, requests should not be processed."
+        );
     }
 }

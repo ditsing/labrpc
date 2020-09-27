@@ -1,6 +1,6 @@
 use crate::{server::RpcHandler, ReplyMessage, RequestMessage, Server};
-use std::sync::Arc;
 use bytes::BytesMut;
+use std::sync::Arc;
 
 pub struct EchoRpcHandler {}
 
