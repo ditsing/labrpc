@@ -28,3 +28,6 @@ type ReplyMessage = bytes::Bytes;
 
 type ServerIdentifier = String;
 type ClientIdentifier = String;
+
+#[cfg(test)]
+mod junk_server;
