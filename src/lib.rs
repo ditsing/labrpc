@@ -30,4 +30,4 @@ type ServerIdentifier = String;
 type ClientIdentifier = String;
 
 #[cfg(test)]
-mod junk_server;
+mod test_utils;

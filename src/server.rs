@@ -112,7 +112,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::junk_server::{EchoRpcHandler, make_server};
+    use crate::test_utils::junk_server::{make_server, EchoRpcHandler};
 
     #[test]
     fn test_register_rpc_handler() -> Result<()> {
@@ -190,7 +190,8 @@ mod tests {
         for _ in 0..3 {
             let server_clone = server.clone();
             let _ = futures::executor::block_on(
-                server_clone.dispatch("aborting".to_string(), RequestMessage::new()),
+                server_clone
+                    .dispatch("aborting".to_string(), RequestMessage::new()),
             );
         }
 
