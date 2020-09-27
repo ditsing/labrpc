@@ -49,16 +49,21 @@ impl Network {
         self.keep_running = false;
     }
 
-    pub fn make_connection(
-        &self,
+    pub fn make_client(
+        &mut self,
         client: ClientIdentifier,
         server: ServerIdentifier,
     ) -> Client {
+        self.clients.insert(client.clone(), (true, server.clone()));
         Client {
             client,
             server,
             request_bus: self.request_bus.clone(),
         }
+    }
+
+    pub fn set_enable_client(&mut self, client: &ClientIdentifier, yes: bool) {
+        self.clients.get_mut(client).map(|pair| pair.0 = yes);
     }
 
     pub fn add_server(
