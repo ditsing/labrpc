@@ -9,8 +9,8 @@ mod server;
 
 type Result<T> = std::io::Result<T>;
 pub use client::Client;
-pub use server::Server;
 pub use network::Network;
+pub use server::Server;
 
 // Messages passed on network.
 struct RpcOnWire {
