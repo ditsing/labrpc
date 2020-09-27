@@ -1,5 +1,7 @@
 extern crate bytes;
 extern crate futures;
+extern crate rand;
+extern crate tokio_timer;
 
 mod client;
 mod network;
