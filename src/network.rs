@@ -232,6 +232,7 @@ impl Network {
         let network = Arc::new(Mutex::new(network));
 
         let thread_pool = tokio::runtime::Builder::new()
+            .threaded_scheduler()
             .core_threads(10)
             .max_threads(20)
             .thread_name("network")
@@ -309,7 +310,8 @@ impl Network {
 mod tests {
     use std::sync::MutexGuard;
 
-    use crate::test_utils::make_echo_rpc;
+    use crate::test_utils::{junk_server::make_server, make_echo_rpc};
+    use crate::Result;
 
     use super::*;
 
@@ -348,11 +350,45 @@ mod tests {
         while unlock(&network).is_running() {
             std::thread::sleep(Network::SHUTDOWN_DELAY)
         }
-        let (rpc, _) = make_echo_rpc("client", "server");
+        let (rpc, _) = make_echo_rpc("client", "server", &[]);
         let result = sender.send(rpc);
         assert!(
             result.is_err(),
             "Network is shutdown, requests should not be processed."
         );
+    }
+
+    #[test]
+    fn test_proxy_rpc() -> Result<()> {
+        let network = Network::run_daemon();
+        let sender = {
+            let mut network = unlock(&network);
+            network.clients.insert(
+                "test-client".into(),
+                (true, "test-server".to_string()),
+            );
+            network.servers.insert("test-server".into(), make_server());
+            network.request_bus.clone()
+        };
+
+        let (rpc, rx) =
+            make_echo_rpc("test-client", "test-server", &[0x09, 0x00]);
+        let result = sender.send(rpc);
+
+        assert!(
+            result.is_ok(),
+            "Network is running, requests should be processed."
+        );
+
+        let reply = match futures::executor::block_on(rx) {
+            Ok(reply) => reply,
+            Err(e) => panic!("Future execution should not fail: {}", e),
+        };
+        match reply {
+            Ok(reply) => assert_eq!(reply.as_ref(), &[0x00u8, 0x09u8]),
+            Err(e) => panic!("Expecting echo message, got {}", e),
+        }
+
+        Ok(())
     }
 }
