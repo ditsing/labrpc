@@ -62,3 +62,105 @@ impl Client {
         })?
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::{channel, Sender};
+
+    use super::*;
+
+    fn make_rpc_call(tx: Sender<RpcOnWire>) -> Result<ReplyMessage> {
+        let client = Client {
+            client: "C".into(),
+            server: "S".into(),
+            request_bus: tx,
+        };
+
+        let request = RequestMessage::from_static(&[0x17, 0x20]);
+        futures::executor::block_on(client.call_rpc("hello".into(), request))
+    }
+
+    fn make_rpc_call_and_reply(
+        reply: Result<ReplyMessage>,
+    ) -> Result<ReplyMessage> {
+        let (tx, rx) = channel();
+
+        let handle = std::thread::spawn(move || make_rpc_call(tx));
+
+        let rpc = rx.recv().expect("The request message should arrive");
+        assert_eq!("C", &rpc.client);
+        assert_eq!("S", &rpc.server);
+        assert_eq!("hello", &rpc.service_method);
+        assert_eq!(&[0x17, 0x20], rpc.request.as_ref());
+
+        rpc.reply_channel
+            .send(reply)
+            .expect("The reply channel should not be closed");
+        handle.join().expect("Rpc sending thread should succeed")
+    }
+
+    #[test]
+    fn test_call_rpc() -> Result<()> {
+        let data = &[0x11, 0x99];
+        let reply =
+            make_rpc_call_and_reply(Ok(ReplyMessage::from_static(data)))?;
+        assert_eq!(data, reply.as_ref());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_call_rpc_remote_error() -> Result<()> {
+        let reply = make_rpc_call_and_reply(Err(std::io::Error::new(
+            std::io::ErrorKind::AddrInUse,
+            "",
+        )));
+
+        if let Err(e) = reply {
+            assert_eq!(std::io::ErrorKind::AddrInUse, e.kind());
+        } else {
+            panic!("Client should propagate remote error.")
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_call_rpc_remote_dropped() -> Result<()> {
+        let (tx, rx) = channel();
+
+        let handle = std::thread::spawn(move || make_rpc_call(tx));
+
+        let rpc = rx.recv().expect("The request message should arrive");
+        drop(rpc.reply_channel);
+
+        let reply = handle.join().expect("Rpc sending thread should succeed");
+
+        if let Err(e) = reply {
+            assert_eq!(std::io::ErrorKind::ConnectionAborted, e.kind());
+        } else {
+            panic!(
+                "Client should return error. Reply channel has been dropped."
+            )
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_call_rpc_not_connected() -> Result<()> {
+        let (tx, rx) = channel();
+        {
+            drop(rx);
+        }
+
+        let handle = std::thread::spawn(move || make_rpc_call(tx));
+        let reply = handle.join().expect("Rpc sending thread should succeed");
+        if let Err(e) = reply {
+            assert_eq!(std::io::ErrorKind::NotConnected, e.kind());
+        } else {
+            panic!("Client should return error. request_bus has been dropped.")
+        }
+        Ok(())
+    }
+}
