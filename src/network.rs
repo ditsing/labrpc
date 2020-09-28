@@ -292,7 +292,7 @@ impl Network {
         // too many pending RPCs to be served.
         let (tx, rx) = channel();
         Network {
-            reliable: false,
+            reliable: true,
             long_delays: false,
             long_reordering: false,
             clients: Default::default(),
@@ -310,8 +310,10 @@ impl Network {
 mod tests {
     use std::sync::MutexGuard;
 
-    use crate::test_utils::{junk_server::make_server, make_echo_rpc};
-    use crate::Result;
+    use crate::test_utils::{
+        junk_server::make_server, make_aborting_rpc, make_echo_rpc,
+    };
+    use crate::{ReplyMessage, Result};
 
     use super::*;
 
@@ -358,8 +360,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_proxy_rpc() -> Result<()> {
+    fn send_rpc(
+        rpc: RpcOnWire,
+        rx: futures::channel::oneshot::Receiver<Result<ReplyMessage>>,
+    ) -> Result<ReplyMessage> {
         let network = Network::run_daemon();
         let sender = {
             let mut network = unlock(&network);
@@ -371,8 +375,6 @@ mod tests {
             network.request_bus.clone()
         };
 
-        let (rpc, rx) =
-            make_echo_rpc("test-client", "test-server", &[0x09, 0x00]);
         let result = sender.send(rpc);
 
         assert!(
@@ -384,10 +386,29 @@ mod tests {
             Ok(reply) => reply,
             Err(e) => panic!("Future execution should not fail: {}", e),
         };
+
+        reply
+    }
+
+    #[test]
+    fn test_proxy_rpc() -> Result<()> {
+        let (rpc, rx) =
+            make_echo_rpc("test-client", "test-server", &[0x09u8, 0x00u8]);
+        let reply = send_rpc(rpc, rx);
         match reply {
             Ok(reply) => assert_eq!(reply.as_ref(), &[0x00u8, 0x09u8]),
             Err(e) => panic!("Expecting echo message, got {}", e),
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_proxy_rpc_server_error() -> Result<()> {
+        let (rpc, rx) = make_aborting_rpc("test-client", "test-server");
+        let reply = send_rpc(rpc, rx);
+        let err = reply.expect_err("Network should proxy server errors");
+        assert_eq!(std::io::ErrorKind::ConnectionReset, err.kind());
 
         Ok(())
     }
