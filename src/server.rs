@@ -1,6 +1,7 @@
-use crate::{ReplyMessage, RequestMessage, Result};
 use std::collections::hash_map::Entry::Vacant;
 use std::sync::Arc;
+
+use crate::{ReplyMessage, RequestMessage, Result};
 
 pub trait RpcHandler {
     // Note this method is not async.
@@ -40,7 +41,7 @@ impl Server {
                 let state = self
                     .state
                     .lock()
-                    .expect("The server state mutex should not be poisoned.");
+                    .expect("The server state mutex should not be poisoned");
                 state.rpc_count.set(state.rpc_count.get() + 1);
                 state.rpc_handlers.get(&service_method).map(|r| r.clone())
             };
@@ -75,7 +76,7 @@ impl Server {
         let mut state = self
             .state
             .lock()
-            .expect("The server state mutex should not be poisoned.");
+            .expect("The server state mutex should not be poisoned");
         let debug_service_method = service_method.clone();
         if let Vacant(vacant) = state.rpc_handlers.entry(service_method) {
             vacant.insert(Arc::new(rpc_handler));
@@ -100,7 +101,7 @@ impl Server {
             .name_prefix(name.clone())
             .pool_size(Self::THREAD_POOL_SIZE)
             .create()
-            .expect("Creating thread pools should not fail.");
+            .expect("Creating thread pools should not fail");
         Self {
             name,
             state,
@@ -111,21 +112,32 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::test_utils::junk_server::{make_server, EchoRpcHandler};
+
+    use super::*;
+
+    fn rpc_handlers_len(server: &Server) -> usize {
+        server
+            .state
+            .lock()
+            .expect("The server state mutex should not be poisoned.")
+            .rpc_handlers
+            .len()
+    }
 
     #[test]
     fn test_register_rpc_handler() -> Result<()> {
         let server = make_server();
 
-        assert_eq!(2, server.state.lock().unwrap().rpc_handlers.len());
+        assert_eq!(2, rpc_handlers_len(server.as_ref()));
         Ok(())
     }
 
     #[test]
     fn test_register_rpc_handler_failure() -> Result<()> {
         let mut server = make_server();
-        let server = std::sync::Arc::get_mut(&mut server).unwrap();
+        let server = std::sync::Arc::get_mut(&mut server)
+            .expect("Server should only be held by the current thread");
 
         let result = server.register_rpc_handler(
             "echo".to_string(),
@@ -133,7 +145,7 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert_eq!(2, server.state.lock().unwrap().rpc_handlers.len());
+        assert_eq!(2, rpc_handlers_len(server));
         Ok(())
     }
 
@@ -174,7 +186,7 @@ mod tests {
         assert_eq!(
             reply
                 .err()
-                .expect("Aborting RPC should return error.")
+                .expect("Aborting RPC should return error")
                 .kind(),
             std::io::ErrorKind::ConnectionReset,
         );

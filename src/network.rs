@@ -3,11 +3,11 @@ use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::Client;
-use crate::Result;
-use crate::Server;
-use crate::{ClientIdentifier, RpcOnWire, ServerIdentifier};
 use rand::{thread_rng, Rng};
+
+use crate::{
+    Client, ClientIdentifier, Result, RpcOnWire, Server, ServerIdentifier,
+};
 
 pub struct Network {
     // Settings.
@@ -227,7 +227,7 @@ impl Network {
         let rx = network
             .request_pipe
             .take()
-            .expect("Newly created network should have a rx.");
+            .expect("Newly created network should have a rx");
 
         let network = Arc::new(Mutex::new(network));
 
@@ -307,8 +307,11 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::MutexGuard;
+
     use crate::test_utils::make_echo_rpc;
+
+    use super::*;
 
     fn make_network() -> Network {
         Network::new()
@@ -323,19 +326,26 @@ mod tests {
         assert_eq!(1, network.get_total_rpc_count());
     }
 
+    fn unlock<T>(network: &Arc<Mutex<T>>) -> MutexGuard<T> {
+        network
+            .lock()
+            .expect("Network mutex should not be poisoned")
+    }
+
     #[test]
     fn test_network_shutdown() {
         let network = Network::run_daemon();
-        while !network.lock().unwrap().is_running() {
+        while !unlock(&network).is_running() {
             std::thread::sleep(Network::SHUTDOWN_DELAY)
         }
         let sender = {
-            let mut network = network.lock().unwrap();
-            let sender = network.request_bus.clone();
+            let mut network = unlock(&network);
+
             network.keep_running = false;
-            sender
+
+            network.request_bus.clone()
         };
-        while network.lock().unwrap().is_running() {
+        while unlock(&network).is_running() {
             std::thread::sleep(Network::SHUTDOWN_DELAY)
         }
         let (rpc, _) = make_echo_rpc("client", "server");

@@ -1,5 +1,6 @@
-use crate::{ReplyMessage, RequestMessage, Result, RpcOnWire};
 use futures::channel::oneshot::Receiver;
+
+use crate::{ReplyMessage, RequestMessage, Result, RpcOnWire};
 
 pub(crate) mod junk_server;
 

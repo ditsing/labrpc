@@ -1,8 +1,9 @@
+use std::sync::mpsc::Sender;
+
 use crate::{
     ClientIdentifier, ReplyMessage, RequestMessage, Result, RpcOnWire,
     ServerIdentifier,
 };
-use std::sync::mpsc::Sender;
 
 // Client interface, used by the RPC client.
 pub struct Client {

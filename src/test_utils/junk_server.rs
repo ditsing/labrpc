@@ -1,12 +1,12 @@
-use crate::{server::RpcHandler, ReplyMessage, RequestMessage, Server};
-use bytes::BytesMut;
 use std::sync::Arc;
+
+use crate::{server::RpcHandler, ReplyMessage, RequestMessage, Server};
 
 pub struct EchoRpcHandler {}
 
 impl RpcHandler for EchoRpcHandler {
     fn call(&self, request: RequestMessage) -> ReplyMessage {
-        let mut reply = BytesMut::from(request.as_ref());
+        let mut reply = bytes::BytesMut::from(request.as_ref());
         reply.reverse();
         reply.freeze()
     }
@@ -24,12 +24,12 @@ pub fn make_server() -> Arc<Server> {
     let mut server = Server::make_server("test-server".to_string());
     server
         .register_rpc_handler("echo".to_string(), Box::new(EchoRpcHandler {}))
-        .expect("Registering the first RPC handler should not fail.");
+        .expect("Registering the first RPC handler should not fail");
     server
         .register_rpc_handler(
             "aborting".to_string(),
             Box::new(AbortingRpcHandler {}),
         )
-        .expect("Registering the second RPC handler should not fail.");
+        .expect("Registering the second RPC handler should not fail");
     Arc::new(server)
 }
