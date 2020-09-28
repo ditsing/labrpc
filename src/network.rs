@@ -87,7 +87,7 @@ impl Network {
         let (enabled, server_name) =
             self.clients.get(client).ok_or_else(|| {
                 std::io::Error::new(
-                    std::io::ErrorKind::NotConnected,
+                    std::io::ErrorKind::PermissionDenied,
                     format!("Client {} is not connected.", client),
                 )
             })?;
@@ -446,7 +446,7 @@ mod tests {
         let (rpc, rx) = make_aborting_rpc(NON_CLIENT, TEST_SERVER);
         let reply = send_rpc(rpc, rx, TEST_CLIENT, TEST_SERVER, true);
         let err = reply.expect_err("Network should check client names");
-        assert_eq!(std::io::ErrorKind::NotConnected, err.kind());
+        assert_eq!(std::io::ErrorKind::PermissionDenied, err.kind());
 
         Ok(())
     }

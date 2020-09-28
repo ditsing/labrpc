@@ -15,14 +15,17 @@ pub struct Client {
 
 impl Client {
     /// Error type and meaning
-    /// * Connection aborted: The client did not have a chance to send the
-    /// request, or will not receive a reply because the network is down.
-    /// * Not connected: The network does not allow the client to send requests.
+    /// * Not connected: The client did not have a chance to send the request
+    /// because the network is down.
+    /// * Permission denied: The network does not allow the client to send
+    /// requests.
     /// * Broken pipe: The network no longer allows the client to send requests.
     /// * Not found: The network could not find the target server.
     /// * Invalid input: The server could not find the service / method to call.
     /// * Connection reset: The server received the request, but decided to stop
     /// responding.
+    /// * Connection aborted: The client will not receive a reply because the
+    /// the connection is closed by the network.
     pub async fn call_rpc(
         &self,
         service_method: String,
@@ -40,7 +43,7 @@ impl Client {
         self.request_bus.send(rpc).map_err(|e| {
             // The receiving end has been closed. Network connection is broken.
             std::io::Error::new(
-                std::io::ErrorKind::ConnectionAborted,
+                std::io::ErrorKind::NotConnected,
                 format!(
                     "Cannot send rpc, client {} is disconnected. {}",
                     self.client.clone(),
