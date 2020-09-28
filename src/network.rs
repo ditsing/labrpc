@@ -311,7 +311,10 @@ mod tests {
     use std::sync::MutexGuard;
 
     use crate::test_utils::{
-        junk_server::make_server, make_aborting_rpc, make_echo_rpc,
+        junk_server::{
+            make_test_server, NON_CLIENT, NON_SERVER, TEST_CLIENT, TEST_SERVER,
+        },
+        make_aborting_rpc, make_echo_rpc,
     };
     use crate::{ReplyMessage, Result};
 
@@ -373,7 +376,9 @@ mod tests {
             network
                 .clients
                 .insert(client.into(), (enabled, server.into()));
-            network.servers.insert("test-server".into(), make_server());
+            network
+                .servers
+                .insert(TEST_SERVER.into(), make_test_server());
             network.request_bus.clone()
         };
 
@@ -395,8 +400,8 @@ mod tests {
     #[test]
     fn test_proxy_rpc() -> Result<()> {
         let (rpc, rx) =
-            make_echo_rpc("test-client", "test-server", &[0x09u8, 0x00u8]);
-        let reply = send_rpc(rpc, rx, "test-client", "test-server", true);
+            make_echo_rpc(TEST_CLIENT, TEST_SERVER, &[0x09u8, 0x00u8]);
+        let reply = send_rpc(rpc, rx, TEST_CLIENT, TEST_SERVER, true);
         match reply {
             Ok(reply) => assert_eq!(reply.as_ref(), &[0x00u8, 0x09u8]),
             Err(e) => panic!("Expecting echo message, got {}", e),
@@ -407,8 +412,8 @@ mod tests {
 
     #[test]
     fn test_proxy_rpc_server_error() -> Result<()> {
-        let (rpc, rx) = make_aborting_rpc("test-client", "test-server");
-        let reply = send_rpc(rpc, rx, "test-client", "test-server", true);
+        let (rpc, rx) = make_aborting_rpc(TEST_CLIENT, TEST_SERVER);
+        let reply = send_rpc(rpc, rx, TEST_CLIENT, TEST_SERVER, true);
         let err = reply.expect_err("Network should proxy server errors");
         assert_eq!(std::io::ErrorKind::ConnectionReset, err.kind());
 
@@ -417,8 +422,8 @@ mod tests {
 
     #[test]
     fn test_proxy_rpc_server_not_found() -> Result<()> {
-        let (rpc, rx) = make_aborting_rpc("test-client", "non-test-server");
-        let reply = send_rpc(rpc, rx, "test-client", "non-test-server", true);
+        let (rpc, rx) = make_aborting_rpc(TEST_CLIENT, NON_SERVER);
+        let reply = send_rpc(rpc, rx, TEST_CLIENT, NON_SERVER, true);
         let err = reply.expect_err("Network should check server in memory");
         assert_eq!(std::io::ErrorKind::NotFound, err.kind());
 
@@ -427,8 +432,8 @@ mod tests {
 
     #[test]
     fn test_proxy_rpc_client_disabled() -> Result<()> {
-        let (rpc, rx) = make_aborting_rpc("test-client", "test-server");
-        let reply = send_rpc(rpc, rx, "test-client", "test-server", false);
+        let (rpc, rx) = make_aborting_rpc(TEST_CLIENT, TEST_SERVER);
+        let reply = send_rpc(rpc, rx, TEST_CLIENT, TEST_SERVER, false);
         let err =
             reply.expect_err("Network should check if client is disabled");
         assert_eq!(std::io::ErrorKind::BrokenPipe, err.kind());
@@ -438,8 +443,8 @@ mod tests {
 
     #[test]
     fn test_proxy_rpc_no_such_client() -> Result<()> {
-        let (rpc, rx) = make_aborting_rpc("non-test-client", "test-server");
-        let reply = send_rpc(rpc, rx, "test-client", "test-server", true);
+        let (rpc, rx) = make_aborting_rpc(NON_CLIENT, TEST_SERVER);
+        let reply = send_rpc(rpc, rx, TEST_CLIENT, TEST_SERVER, true);
         let err = reply.expect_err("Network should check client names");
         assert_eq!(std::io::ErrorKind::NotConnected, err.kind());
 

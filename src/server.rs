@@ -112,7 +112,10 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::junk_server::{make_server, EchoRpcHandler};
+    use crate::test_utils::junk_server::{
+        make_test_server, EchoRpcHandler,
+        JunkRpcs::{Aborting, Echo},
+    };
 
     use super::*;
 
@@ -127,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_register_rpc_handler() -> Result<()> {
-        let server = make_server();
+        let server = make_test_server();
 
         assert_eq!(2, rpc_handlers_len(server.as_ref()));
         Ok(())
@@ -135,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_register_rpc_handler_failure() -> Result<()> {
-        let mut server = make_server();
+        let mut server = make_test_server();
         let server = std::sync::Arc::get_mut(&mut server)
             .expect("Server should only be held by the current thread");
 
@@ -151,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_serve_rpc() -> Result<()> {
-        let server = make_server();
+        let server = make_test_server();
 
         let reply = server.dispatch(
             "echo".to_string(),
@@ -165,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_rpc_not_found() -> Result<()> {
-        let server = make_server();
+        let server = make_test_server();
 
         let reply = server.dispatch("acorn".to_string(), RequestMessage::new());
         match futures::executor::block_on(reply) {
@@ -177,10 +180,10 @@ mod tests {
 
     #[test]
     fn test_rpc_error() -> Result<()> {
-        let server = make_server();
+        let server = make_test_server();
 
         let reply = futures::executor::block_on(
-            server.dispatch("aborting".to_string(), RequestMessage::new()),
+            server.dispatch(Aborting.name(), RequestMessage::new()),
         );
 
         assert_eq!(
@@ -196,21 +199,18 @@ mod tests {
 
     #[test]
     fn test_server_survives_3_rpc_errors() -> Result<()> {
-        let server = make_server();
+        let server = make_test_server();
 
         // TODO(ditsing): server hangs after the 4th RPC error.
         for _ in 0..3 {
             let server_clone = server.clone();
             let _ = futures::executor::block_on(
-                server_clone
-                    .dispatch("aborting".to_string(), RequestMessage::new()),
+                server_clone.dispatch(Aborting.name(), RequestMessage::new()),
             );
         }
 
-        let reply = server.dispatch(
-            "echo".to_string(),
-            RequestMessage::from_static(&[0x08, 0x07]),
-        );
+        let reply = server
+            .dispatch(Echo.name(), RequestMessage::from_static(&[0x08, 0x07]));
         let result = futures::executor::block_on(reply)?;
 
         assert_eq!(ReplyMessage::from_static(&[0x07, 0x08]), result);

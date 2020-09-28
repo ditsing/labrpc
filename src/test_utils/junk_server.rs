@@ -2,6 +2,29 @@ use std::sync::Arc;
 
 use crate::{server::RpcHandler, ReplyMessage, RequestMessage, Server};
 
+pub const TEST_SERVER: &str = &"test-server";
+pub const NON_SERVER: &str = &"non-server";
+
+pub const TEST_CLIENT: &str = &"test-client";
+pub const NON_CLIENT: &str = &"non-client";
+
+pub enum JunkRpcs {
+    Echo,
+    Aborting,
+    Woods,
+}
+
+impl JunkRpcs {
+    pub fn name(&self) -> String {
+        match *self {
+            Self::Echo => "echo",
+            Self::Aborting => "aborting",
+            Self::Woods => "woods",
+        }
+        .into()
+    }
+}
+
 pub struct EchoRpcHandler {}
 
 impl RpcHandler for EchoRpcHandler {
@@ -20,14 +43,17 @@ impl RpcHandler for AbortingRpcHandler {
     }
 }
 
-pub fn make_server() -> Arc<Server> {
-    let mut server = Server::make_server("test-server".to_string());
+pub fn make_test_server() -> Arc<Server> {
+    let mut server = Server::make_server(TEST_SERVER.into());
     server
-        .register_rpc_handler("echo".to_string(), Box::new(EchoRpcHandler {}))
+        .register_rpc_handler(
+            JunkRpcs::Echo.name(),
+            Box::new(EchoRpcHandler {}),
+        )
         .expect("Registering the first RPC handler should not fail");
     server
         .register_rpc_handler(
-            "aborting".to_string(),
+            JunkRpcs::Aborting.name(),
             Box::new(AbortingRpcHandler {}),
         )
         .expect("Registering the second RPC handler should not fail");
