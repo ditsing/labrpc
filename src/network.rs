@@ -129,7 +129,7 @@ impl Network {
     const SHUTDOWN_DELAY: Duration = Duration::from_micros(20);
 
     async fn delay_for_millis(milli_seconds: u64) {
-        tokio_timer::delay_for(Duration::from_millis(milli_seconds)).await;
+        tokio::time::delay_for(Duration::from_millis(milli_seconds)).await;
     }
 
     async fn serve_rpc(network: Arc<Mutex<Self>>, rpc: RpcOnWire) {
@@ -231,10 +231,12 @@ impl Network {
 
         let network = Arc::new(Mutex::new(network));
 
-        let thread_pool = futures::executor::ThreadPool::builder()
-            .pool_size(20)
-            .name_prefix("network")
-            .create()
+        let thread_pool = tokio::runtime::Builder::new()
+            .core_threads(10)
+            .max_threads(20)
+            .thread_name("network")
+            .enable_time()
+            .build()
             .expect("Creating network thread pool should not fail");
 
         let other = network.clone();
@@ -260,7 +262,7 @@ impl Network {
                 match rx.try_recv() {
                     Ok(rpc) => {
                         thread_pool
-                            .spawn_ok(Self::serve_rpc(network.clone(), rpc));
+                            .spawn(Self::serve_rpc(network.clone(), rpc));
                     }
                     // All senders have disconnected. This should never happen,
                     // since the network instance itself holds a sender.
