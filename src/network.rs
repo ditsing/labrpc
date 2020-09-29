@@ -323,11 +323,12 @@ mod tests {
 
     use crate::test_utils::{
         junk_server::{
-            make_test_server, NON_CLIENT, NON_SERVER, TEST_CLIENT, TEST_SERVER,
+            make_test_server, JunkRpcs, NON_CLIENT, NON_SERVER, TEST_CLIENT,
+            TEST_SERVER,
         },
         make_aborting_rpc, make_echo_rpc,
     };
-    use crate::{ReplyMessage, Result};
+    use crate::{ReplyMessage, RequestMessage, Result};
 
     use super::*;
 
@@ -456,6 +457,67 @@ mod tests {
         let err = reply.expect_err("Network should check client names");
         assert_eq!(std::io::ErrorKind::PermissionDenied, err.kind());
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_basic_functions() -> Result<()> {
+        // Initialize
+        let network = Network::run_daemon();
+
+        let server = make_test_server();
+        unlock(&network).add_server("junk-server".into(), server);
+
+        let client = unlock(&network).make_client("junk-client", "junk-server");
+
+        assert_eq!(0, unlock(&network).get_total_rpc_count());
+
+        let request = RequestMessage::from_static(&[0x17, 0x20]);
+        let reply_data = &[0x20, 0x17];
+
+        // Send first request.
+        let reply = futures::executor::block_on(
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+        )?;
+        assert_eq!(reply_data, reply.as_ref());
+        assert_eq!(1, unlock(&network).get_total_rpc_count());
+
+        // Block the client.
+        unlock(&network).set_enable_client(&"junk-client".to_string(), false);
+
+        // Send second request.
+        let reply = futures::executor::block_on(
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+        );
+        reply.expect_err("Client is blocked");
+        assert_eq!(2, unlock(&network).get_total_rpc_count());
+
+        // Unblock the client, then remove the server.
+        unlock(&network).set_enable_client(&"junk-client".to_string(), true);
+        unlock(&network).remove_server(&"junk-server".to_string());
+
+        // Send third request.
+        let reply = futures::executor::block_on(
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+        );
+        reply.expect_err("Client is blocked");
+        assert_eq!(3, unlock(&network).get_total_rpc_count());
+
+        // Shutdown the network.
+        unlock(&network).stop();
+
+        while !unlock(&network).stopped() {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        // Send forth request.
+        let reply = futures::executor::block_on(
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+        );
+        reply.expect_err("Network is shutdown");
+        assert_eq!(3, unlock(&network).get_total_rpc_count());
+
+        // Done.
         Ok(())
     }
 }
