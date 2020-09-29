@@ -92,6 +92,14 @@ impl Server {
         }
     }
 
+    pub fn rpc_count(&self) -> usize {
+        self.state
+            .lock()
+            .expect("The server state mutex should not be poisoned")
+            .rpc_count
+            .get()
+    }
+
     pub fn make_server(name: String) -> Self {
         let state = std::sync::Mutex::new(ServerState {
             rpc_handlers: std::collections::HashMap::new(),

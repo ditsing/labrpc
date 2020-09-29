@@ -70,20 +70,33 @@ impl Network {
         }
     }
 
-    pub fn set_enable_client(&mut self, client: &ClientIdentifier, yes: bool) {
-        self.clients.get_mut(client).map(|pair| pair.0 = yes);
+    pub fn set_enable_client<C: AsRef<str> + Sized>(
+        &mut self,
+        client: C,
+        yes: bool,
+    ) {
+        self.clients.get_mut(client.as_ref()).map(|pair| pair.0 = yes);
     }
 
-    pub fn add_server(
+    pub fn add_server<S: Into<ServerIdentifier>>(
         &mut self,
-        server_name: ServerIdentifier,
+        server_name: S,
         server: Arc<Server>,
     ) {
-        self.servers.insert(server_name, server);
+        self.servers.insert(server_name.into(), server);
     }
 
-    pub fn remove_server(&mut self, server_name: &ServerIdentifier) {
-        self.servers.remove(server_name);
+    pub fn remove_server<S: AsRef<str> + Sized>(&mut self, server_name: &S) {
+        self.servers.remove(server_name.as_ref());
+    }
+
+    pub fn get_rpc_count<S: AsRef<str> + Sized>(
+        &self,
+        server_name: S,
+    ) -> Option<usize> {
+        self.servers
+            .get(server_name.as_ref())
+            .map(|s| s.rpc_count())
     }
 
     fn dispatch(&self, client: &ClientIdentifier) -> Result<Arc<Server>> {
@@ -466,7 +479,7 @@ mod tests {
         let network = Network::run_daemon();
 
         let server = make_test_server();
-        unlock(&network).add_server("junk-server".into(), server);
+        unlock(&network).add_server("junk-server", server);
 
         let client = unlock(&network).make_client("junk-client", "junk-server");
 
@@ -491,6 +504,8 @@ mod tests {
         );
         reply.expect_err("Client is blocked");
         assert_eq!(2, unlock(&network).get_total_rpc_count());
+        assert_eq!(Some(1), unlock(&network).get_rpc_count("junk-server"));
+        assert_eq!(None, unlock(&network).get_rpc_count("other-server"));
 
         // Unblock the client, then remove the server.
         unlock(&network).set_enable_client(&"junk-client".to_string(), true);
