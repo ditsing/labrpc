@@ -43,7 +43,7 @@ impl Server {
                     .lock()
                     .expect("The server state mutex should not be poisoned");
                 state.rpc_count.set(state.rpc_count.get() + 1);
-                state.rpc_handlers.get(&service_method).map(|r| r.clone())
+                state.rpc_handlers.get(&service_method).cloned()
             };
             let response = match rpc_handler {
                 Some(rpc_handler) => Ok(rpc_handler.call(data)),
@@ -55,6 +55,7 @@ impl Server {
                     ),
                 )),
             };
+            #[allow(clippy::redundant_pattern_matching)]
             if let Err(_) = tx.send(response) {
                 // Receiving end is dropped. Never mind.
                 // Do nothing.

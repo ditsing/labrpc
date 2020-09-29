@@ -75,9 +75,9 @@ impl Network {
         client: C,
         yes: bool,
     ) {
-        self.clients
-            .get_mut(client.as_ref())
-            .map(|pair| pair.0 = yes);
+        if let Some(pair) = self.clients.get_mut(client.as_ref()) {
+            pair.0 = yes;
+        }
     }
 
     pub fn add_server<S: Into<ServerIdentifier>>(
@@ -101,6 +101,7 @@ impl Network {
             .map(|s| s.rpc_count())
     }
 
+    #[allow(clippy::ptr_arg)]
     fn dispatch(&self, client: &ClientIdentifier) -> Result<Arc<Server>> {
         let (enabled, server_name) =
             self.clients.get(client).ok_or_else(|| {
@@ -334,7 +335,7 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{MutexGuard, Barrier};
+    use std::sync::{Barrier, MutexGuard};
 
     use crate::test_utils::{
         junk_server::{
@@ -559,9 +560,8 @@ mod tests {
             let network_ref = network.clone();
             let barrier_ref = barrier.clone();
             let handle = std::thread::spawn(move || {
-                let client = unlock(&network_ref).make_client(
-                    format!("{}-{}", TEST_CLIENT, i), TEST_SERVER
-                );
+                let client = unlock(&network_ref)
+                    .make_client(format!("{}-{}", TEST_CLIENT, i), TEST_SERVER);
                 // We should all create the client first.
                 barrier_ref.wait();
 
@@ -569,7 +569,7 @@ mod tests {
                 for _ in 0..RPC_COUNT {
                     let reply = client.call_rpc(
                         JunkRpcs::Echo.name(),
-                        RequestMessage::from_static(&[0x20, 0x17])
+                        RequestMessage::from_static(&[0x20, 0x17]),
                     );
                     results.push(reply);
                 }
