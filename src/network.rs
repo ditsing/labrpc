@@ -479,9 +479,9 @@ mod tests {
         let network = Network::run_daemon();
 
         let server = make_test_server();
-        unlock(&network).add_server("junk-server", server);
+        unlock(&network).add_server(TEST_SERVER, server);
 
-        let client = unlock(&network).make_client("junk-client", "junk-server");
+        let client = unlock(&network).make_client(TEST_CLIENT, TEST_SERVER);
 
         assert_eq!(0, unlock(&network).get_total_rpc_count());
 
@@ -496,7 +496,7 @@ mod tests {
         assert_eq!(1, unlock(&network).get_total_rpc_count());
 
         // Block the client.
-        unlock(&network).set_enable_client(&"junk-client".to_string(), false);
+        unlock(&network).set_enable_client(TEST_CLIENT, false);
 
         // Send second request.
         let reply = futures::executor::block_on(
@@ -504,12 +504,12 @@ mod tests {
         );
         reply.expect_err("Client is blocked");
         assert_eq!(2, unlock(&network).get_total_rpc_count());
-        assert_eq!(Some(1), unlock(&network).get_rpc_count("junk-server"));
-        assert_eq!(None, unlock(&network).get_rpc_count("other-server"));
+        assert_eq!(Some(1), unlock(&network).get_rpc_count(TEST_SERVER));
+        assert_eq!(None, unlock(&network).get_rpc_count(NON_SERVER));
 
         // Unblock the client, then remove the server.
-        unlock(&network).set_enable_client(&"junk-client".to_string(), true);
-        unlock(&network).remove_server(&"junk-server".to_string());
+        unlock(&network).set_enable_client(TEST_CLIENT, true);
+        unlock(&network).remove_server(&TEST_SERVER);
 
         // Send third request.
         let reply = futures::executor::block_on(
