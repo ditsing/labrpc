@@ -334,7 +334,7 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::MutexGuard;
+    use std::sync::{MutexGuard, Barrier};
 
     use crate::test_utils::{
         junk_server::{
@@ -475,15 +475,21 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_basic_functions() -> Result<()> {
-        // Initialize
+    fn make_network_and_client() -> (Arc<Mutex<Network>>, Client) {
         let network = Network::run_daemon();
 
         let server = make_test_server();
         unlock(&network).add_server(TEST_SERVER, server);
 
         let client = unlock(&network).make_client(TEST_CLIENT, TEST_SERVER);
+
+        (network, client)
+    }
+
+    #[test]
+    fn test_basic_functions() -> Result<()> {
+        // Initialize
+        let (network, client) = make_network_and_client();
 
         assert_eq!(0, unlock(&network).get_total_rpc_count());
 
@@ -536,5 +542,49 @@ mod tests {
 
         // Done.
         Ok(())
+    }
+
+    #[test]
+    #[ignore = "Large tests with many threads"]
+    fn test_many_requests() {
+        let now = Instant::now();
+
+        let (network, _) = make_network_and_client();
+        let barrier = Arc::new(Barrier::new(THREAD_COUNT + 1));
+        const THREAD_COUNT: usize = 200;
+        const RPC_COUNT: usize = 100;
+
+        let mut handles = vec![];
+        for i in 0..THREAD_COUNT {
+            let network_ref = network.clone();
+            let barrier_ref = barrier.clone();
+            let handle = std::thread::spawn(move || {
+                let client = unlock(&network_ref).make_client(
+                    format!("{}-{}", TEST_CLIENT, i), TEST_SERVER
+                );
+                // We should all create the client first.
+                barrier_ref.wait();
+
+                let mut results = vec![];
+                for _ in 0..RPC_COUNT {
+                    let reply = client.call_rpc(
+                        JunkRpcs::Echo.name(),
+                        RequestMessage::from_static(&[0x20, 0x17])
+                    );
+                    results.push(reply);
+                }
+                for result in results {
+                    futures::executor::block_on(result)
+                        .expect("All futures should succeed");
+                }
+            });
+            handles.push(handle);
+        }
+        barrier.wait();
+
+        for handle in handles {
+            handle.join().expect("All threads should succeed");
+        }
+        eprintln!("Many requests test took {:?}", now.elapsed());
     }
 }
