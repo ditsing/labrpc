@@ -75,7 +75,9 @@ impl Network {
         client: C,
         yes: bool,
     ) {
-        self.clients.get_mut(client.as_ref()).map(|pair| pair.0 = yes);
+        self.clients
+            .get_mut(client.as_ref())
+            .map(|pair| pair.0 = yes);
     }
 
     pub fn add_server<S: Into<ServerIdentifier>>(
