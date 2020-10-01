@@ -7,7 +7,7 @@ mod client;
 mod network;
 mod server;
 
-type Result<T> = std::io::Result<T>;
+pub type Result<T> = std::io::Result<T>;
 pub use client::Client;
 pub use network::Network;
 pub use server::Server;
@@ -23,11 +23,11 @@ struct RpcOnWire {
     reply_channel: futures::channel::oneshot::Sender<Result<ReplyMessage>>,
 }
 
-type RequestMessage = bytes::Bytes;
-type ReplyMessage = bytes::Bytes;
+pub type RequestMessage = bytes::Bytes;
+pub type ReplyMessage = bytes::Bytes;
 
-type ServerIdentifier = String;
-type ClientIdentifier = String;
+pub type ServerIdentifier = String;
+pub type ClientIdentifier = String;
 
 #[cfg(test)]
 mod test_utils;
