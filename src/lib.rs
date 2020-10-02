@@ -10,6 +10,7 @@ mod server;
 pub type Result<T> = std::io::Result<T>;
 pub use client::Client;
 pub use network::Network;
+pub use server::RpcHandler;
 pub use server::Server;
 
 // Messages passed on network.

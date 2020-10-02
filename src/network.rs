@@ -70,11 +70,7 @@ impl Network {
         }
     }
 
-    pub fn set_enable_client<C: AsRef<str> + Sized>(
-        &mut self,
-        client: C,
-        yes: bool,
-    ) {
+    pub fn set_enable_client<C: AsRef<str>>(&mut self, client: C, yes: bool) {
         if let Some(pair) = self.clients.get_mut(client.as_ref()) {
             pair.0 = yes;
         }
@@ -88,11 +84,11 @@ impl Network {
         self.servers.insert(server_name.into(), server);
     }
 
-    pub fn remove_server<S: AsRef<str> + Sized>(&mut self, server_name: &S) {
+    pub fn remove_server<S: AsRef<str>>(&mut self, server_name: &S) {
         self.servers.remove(server_name.as_ref());
     }
 
-    pub fn get_rpc_count<S: AsRef<str> + Sized>(
+    pub fn get_rpc_count<S: AsRef<str>>(
         &self,
         server_name: S,
     ) -> Option<usize> {

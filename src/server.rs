@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry::Vacant;
 use std::sync::Arc;
 
-use crate::{ReplyMessage, RequestMessage, Result};
+use crate::{ReplyMessage, RequestMessage, Result, ServerIdentifier};
 
 pub trait RpcHandler {
     // Note this method is not async.
@@ -101,11 +101,12 @@ impl Server {
             .get()
     }
 
-    pub fn make_server(name: String) -> Self {
+    pub fn make_server<S: Into<ServerIdentifier>>(name: S) -> Self {
         let state = std::sync::Mutex::new(ServerState {
             rpc_handlers: std::collections::HashMap::new(),
             rpc_count: std::cell::Cell::new(0),
         });
+        let name = name.into();
         let thread_pool = futures::executor::ThreadPool::builder()
             .name_prefix(name.clone())
             .pool_size(Self::THREAD_POOL_SIZE)

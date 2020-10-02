@@ -44,7 +44,7 @@ impl RpcHandler for AbortingRpcHandler {
 }
 
 pub fn make_test_server() -> Arc<Server> {
-    let mut server = Server::make_server(TEST_SERVER.into());
+    let mut server = Server::make_server(TEST_SERVER);
     server
         .register_rpc_handler(
             JunkRpcs::Echo.name(),
