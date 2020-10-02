@@ -138,19 +138,21 @@ mod tests {
             .len()
     }
 
+    fn make_arc_test_server() -> Arc<Server> {
+        Arc::new(make_test_server())
+    }
+
     #[test]
     fn test_register_rpc_handler() -> Result<()> {
         let server = make_test_server();
 
-        assert_eq!(2, rpc_handlers_len(server.as_ref()));
+        assert_eq!(2, rpc_handlers_len(&server));
         Ok(())
     }
 
     #[test]
     fn test_register_rpc_handler_failure() -> Result<()> {
         let mut server = make_test_server();
-        let server = std::sync::Arc::get_mut(&mut server)
-            .expect("Server should only be held by the current thread");
 
         let result = server.register_rpc_handler(
             "echo".to_string(),
@@ -158,13 +160,13 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert_eq!(2, rpc_handlers_len(server));
+        assert_eq!(2, rpc_handlers_len(&server));
         Ok(())
     }
 
     #[test]
     fn test_serve_rpc() -> Result<()> {
-        let server = make_test_server();
+        let server = make_arc_test_server();
 
         let reply = server.dispatch(
             "echo".to_string(),
@@ -178,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_rpc_not_found() -> Result<()> {
-        let server = make_test_server();
+        let server = make_arc_test_server();
 
         let reply = server.dispatch("acorn".to_string(), RequestMessage::new());
         match futures::executor::block_on(reply) {
@@ -190,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_rpc_error() -> Result<()> {
-        let server = make_test_server();
+        let server = make_arc_test_server();
 
         let reply = futures::executor::block_on(
             server.dispatch(Aborting.name(), RequestMessage::new()),
@@ -209,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_server_survives_3_rpc_errors() -> Result<()> {
-        let server = make_test_server();
+        let server = make_arc_test_server();
 
         // TODO(ditsing): server hangs after the 4th RPC error.
         for _ in 0..3 {

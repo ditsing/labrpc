@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{server::RpcHandler, ReplyMessage, RequestMessage, Server};
 
 pub const TEST_SERVER: &str = &"test-server";
@@ -43,7 +41,7 @@ impl RpcHandler for AbortingRpcHandler {
     }
 }
 
-pub fn make_test_server() -> Arc<Server> {
+pub fn make_test_server() -> Server {
     let mut server = Server::make_server(TEST_SERVER);
     server
         .register_rpc_handler(
@@ -57,5 +55,5 @@ pub fn make_test_server() -> Arc<Server> {
             Box::new(AbortingRpcHandler {}),
         )
         .expect("Registering the second RPC handler should not fail");
-    Arc::new(server)
+    server
 }

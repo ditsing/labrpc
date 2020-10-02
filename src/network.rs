@@ -79,9 +79,9 @@ impl Network {
     pub fn add_server<S: Into<ServerIdentifier>>(
         &mut self,
         server_name: S,
-        server: Arc<Server>,
+        server: Server,
     ) {
-        self.servers.insert(server_name.into(), server);
+        self.servers.insert(server_name.into(), Arc::new(server));
     }
 
     pub fn remove_server<S: AsRef<str>>(&mut self, server_name: &S) {
@@ -399,7 +399,7 @@ mod tests {
                 .insert(client.into(), (enabled, server.into()));
             network
                 .servers
-                .insert(TEST_SERVER.into(), make_test_server());
+                .insert(TEST_SERVER.into(), Arc::new(make_test_server()));
             network.request_bus.clone()
         };
 
