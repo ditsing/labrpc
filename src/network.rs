@@ -244,8 +244,10 @@ impl Network {
             .take()
             .expect("Newly created network should have a rx");
 
+        // Using Mutex instead of RWLock, because most of the access are reads.
         let network = Arc::new(Mutex::new(network));
 
+        // Using tokio instead of futures-rs, because we need timer futures.
         let thread_pool = tokio::runtime::Builder::new()
             .threaded_scheduler()
             .core_threads(10)
