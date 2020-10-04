@@ -497,7 +497,9 @@ mod tests {
 
         // Send first request.
         let reply = futures::executor::block_on(
-            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client
+                .clone()
+                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
         )?;
         assert_eq!(reply_data, reply.as_ref());
         assert_eq!(1, unlock(&network).get_total_rpc_count());
@@ -507,7 +509,9 @@ mod tests {
 
         // Send second request.
         let reply = futures::executor::block_on(
-            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client
+                .clone()
+                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Client is blocked");
         assert_eq!(2, unlock(&network).get_total_rpc_count());
@@ -520,7 +524,9 @@ mod tests {
 
         // Send third request.
         let reply = futures::executor::block_on(
-            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client
+                .clone()
+                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Client is blocked");
         assert_eq!(3, unlock(&network).get_total_rpc_count());
@@ -534,7 +540,9 @@ mod tests {
 
         // Send forth request.
         let reply = futures::executor::block_on(
-            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client
+                .clone()
+                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Network is shutdown");
         assert_eq!(3, unlock(&network).get_total_rpc_count());
@@ -565,7 +573,7 @@ mod tests {
 
                 let mut results = vec![];
                 for _ in 0..RPC_COUNT {
-                    let reply = client.call_rpc(
+                    let reply = client.clone().call_rpc(
                         JunkRpcs::Echo.name(),
                         RequestMessage::from_static(&[0x20, 0x17]),
                     );

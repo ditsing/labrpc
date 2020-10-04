@@ -6,6 +6,8 @@ use crate::{
 };
 
 // Client interface, used by the RPC client.
+// Clone this interface when before calling `call_rpc`.
+#[derive(Clone)]
 pub struct Client {
     pub(crate) client: ClientIdentifier,
     pub(crate) server: ServerIdentifier,
@@ -27,27 +29,28 @@ impl Client {
     /// * Connection aborted: The client will not receive a reply because the
     /// the connection is closed by the network.
     pub async fn call_rpc(
-        &self,
+        self,
         service_method: String,
         request: RequestMessage,
     ) -> Result<ReplyMessage> {
         let (tx, rx) = futures::channel::oneshot::channel();
+        let (server, client, request_bus) =
+            (self.server, self.client, self.request_bus);
         let rpc = RpcOnWire {
-            client: self.client.clone(),
-            server: self.server.clone(),
+            client: client.clone(),
+            server,
             service_method,
             request,
             reply_channel: tx,
         };
 
-        self.request_bus.send(rpc).map_err(|e| {
+        request_bus.send(rpc).map_err(|e| {
             // The receiving end has been closed. Network connection is broken.
             std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
                 format!(
                     "Cannot send rpc, client {} is disconnected. {}",
-                    self.client.clone(),
-                    e
+                    client, e
                 ),
             )
         })?;
@@ -161,6 +164,33 @@ mod tests {
         } else {
             panic!("Client should return error. request_bus has been dropped.")
         }
+        Ok(())
+    }
+
+    async fn make_rpc(client: Client) -> Result<ReplyMessage> {
+        let request = RequestMessage::from_static(&[0x17, 0x20]);
+        let client = client.clone();
+        client.call_rpc("hello".into(), request).await
+    }
+
+    #[test]
+    fn test_call_across_threads() -> Result<()> {
+        let (tx, rx) = channel();
+        let rpc_future = {
+            let client = Client {
+                client: "C".into(),
+                server: "S".into(),
+                request_bus: tx,
+            };
+            make_rpc(client)
+        };
+        std::thread::spawn(move || {
+            let _ = futures::executor::block_on(rpc_future);
+        });
+        let rpc = rx.recv().expect("The request message should arrive");
+        rpc.reply_channel
+            .send(Ok(Default::default()))
+            .expect("The reply channel should not be closed");
         Ok(())
     }
 }
