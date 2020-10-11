@@ -84,7 +84,7 @@ impl Network {
         self.servers.insert(server_name.into(), Arc::new(server));
     }
 
-    pub fn remove_server<S: AsRef<str>>(&mut self, server_name: &S) {
+    pub fn remove_server<S: AsRef<str>>(&mut self, server_name: S) {
         self.servers.remove(server_name.as_ref());
     }
 
