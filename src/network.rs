@@ -292,10 +292,7 @@ impl Network {
             // and stop sending messages.
             drop(rx);
 
-            network
-                .lock()
-                .stopped
-                .store(true, Ordering::Release);
+            network.lock().stopped.store(true, Ordering::Release);
         });
 
         network
