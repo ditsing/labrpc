@@ -204,6 +204,14 @@ impl Network {
         };
 
         if reply.is_ok() {
+            // Fail the RPC if the client has been disconnected.
+            if network.lock().dispatch(&rpc.client).is_err() {
+                let _ = rpc.reply_channel.send(Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionReset,
+                    format!("Network connection has been reset."),
+                )));
+                return;
+            }
             // Random drop again.
             if !reliable
                 && thread_rng().gen_ratio(Self::DROP_RATE.0, Self::DROP_RATE.1)
@@ -230,15 +238,6 @@ impl Network {
                 }
             }
         }
-
-        // Fail the RPC if the client has been disconnected.
-        let reply = match network.lock().dispatch(&rpc.client) {
-            Ok(_) => reply,
-            Err(_e) => Err(std::io::Error::new(
-                std::io::ErrorKind::ConnectionReset,
-                format!("Network connection has been reset."),
-            )),
-        };
 
         if let Err(_e) = rpc.reply_channel.send(reply) {
             // TODO(ditsing): log and do nothing.
