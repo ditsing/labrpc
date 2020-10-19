@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc,
 };
 use std::time::{Duration, Instant};
 
+use parking_lot::Mutex;
 use rand::{thread_rng, Rng};
 
 use crate::{
@@ -149,9 +150,7 @@ impl Network {
 
     async fn serve_rpc(network: Arc<Mutex<Self>>, rpc: RpcOnWire) {
         let (server_result, reliable, long_reordering, long_delays) = {
-            let network = network
-                .lock()
-                .expect("Network mutex should not be poisoned");
+            let network = network.lock();
             network.increase_rpc_count();
 
             (
@@ -266,10 +265,7 @@ impl Network {
                 // trying to add / remove RPC servers, or change settings.
                 // Having a shutdown delay helps minimise lock holding.
                 if stop_timer.elapsed() >= Self::SHUTDOWN_DELAY {
-                    let locked_network = network
-                        .lock()
-                        .expect("Network mutex should not be poisoned");
-                    if !locked_network.keep_running {
+                    if !network.lock().keep_running {
                         break;
                     }
                     stop_timer = Instant::now();
@@ -298,7 +294,6 @@ impl Network {
 
             network
                 .lock()
-                .expect("Network mutex should not be poisoned")
                 .stopped
                 .store(true, Ordering::Release);
         });
@@ -333,7 +328,9 @@ impl Network {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Barrier, MutexGuard};
+    use std::sync::Barrier;
+
+    use parking_lot::MutexGuard;
 
     use crate::test_utils::{
         junk_server::{
@@ -360,9 +357,7 @@ mod tests {
     }
 
     fn unlock<T>(network: &Arc<Mutex<T>>) -> MutexGuard<T> {
-        network
-            .lock()
-            .expect("Network mutex should not be poisoned")
+        network.lock()
     }
 
     #[test]
