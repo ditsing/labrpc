@@ -145,7 +145,7 @@ impl Network {
     const SHUTDOWN_DELAY: Duration = Duration::from_micros(20);
 
     async fn delay_for_millis(milli_seconds: u64) {
-        tokio::time::delay_for(Duration::from_millis(milli_seconds)).await;
+        tokio::time::sleep(Duration::from_millis(milli_seconds)).await;
     }
 
     async fn serve_rpc(network: Arc<Mutex<Self>>, rpc: RpcOnWire) {
@@ -256,9 +256,8 @@ impl Network {
         let network = Arc::new(Mutex::new(network));
 
         // Using tokio instead of futures-rs, because we need timer futures.
-        let thread_pool = tokio::runtime::Builder::new()
-            .threaded_scheduler()
-            .core_threads(10)
+        let thread_pool = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(10)
             .max_threads(20)
             .thread_name("network")
             .enable_time()
