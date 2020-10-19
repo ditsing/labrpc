@@ -1,6 +1,8 @@
 use std::collections::hash_map::Entry::Vacant;
 use std::sync::Arc;
 
+use parking_lot::Mutex;
+
 use crate::{ReplyMessage, RequestMessage, Result, ServerIdentifier};
 
 pub trait RpcHandler {
@@ -15,7 +17,7 @@ struct ServerState {
 
 pub struct Server {
     name: String,
-    state: std::sync::Mutex<ServerState>,
+    state: Mutex<ServerState>,
     thread_pool: futures::executor::ThreadPool,
 }
 
@@ -38,10 +40,7 @@ impl Server {
             let rpc_handler = {
                 // Blocking on a mutex in a thread pool. Sounds horrible, but
                 // in fact quite safe, given that the critical section is short.
-                let state = self
-                    .state
-                    .lock()
-                    .expect("The server state mutex should not be poisoned");
+                let state = self.state.lock();
                 state.rpc_count.set(state.rpc_count.get() + 1);
                 state.rpc_handlers.get(&service_method).cloned()
             };
@@ -74,10 +73,7 @@ impl Server {
         service_method: String,
         rpc_handler: Box<dyn RpcHandler>,
     ) -> Result<()> {
-        let mut state = self
-            .state
-            .lock()
-            .expect("The server state mutex should not be poisoned");
+        let mut state = self.state.lock();
         let debug_service_method = service_method.clone();
         if let Vacant(vacant) = state.rpc_handlers.entry(service_method) {
             vacant.insert(Arc::new(rpc_handler));
@@ -94,15 +90,11 @@ impl Server {
     }
 
     pub fn rpc_count(&self) -> usize {
-        self.state
-            .lock()
-            .expect("The server state mutex should not be poisoned")
-            .rpc_count
-            .get()
+        self.state.lock().rpc_count.get()
     }
 
     pub fn make_server<S: Into<ServerIdentifier>>(name: S) -> Self {
-        let state = std::sync::Mutex::new(ServerState {
+        let state = Mutex::new(ServerState {
             rpc_handlers: std::collections::HashMap::new(),
             rpc_count: std::cell::Cell::new(0),
         });
@@ -130,12 +122,7 @@ mod tests {
     use super::*;
 
     fn rpc_handlers_len(server: &Server) -> usize {
-        server
-            .state
-            .lock()
-            .expect("The server state mutex should not be poisoned.")
-            .rpc_handlers
-            .len()
+        server.state.lock().rpc_handlers.len()
     }
 
     fn make_arc_test_server() -> Arc<Server> {
