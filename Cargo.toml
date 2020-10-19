@@ -1,6 +1,6 @@
 [package]
 name = "labrpc"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Jing Yang <ditsing@gmail.com>"]
 edition = "2018"
 
