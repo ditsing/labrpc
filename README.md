@@ -44,6 +44,9 @@ A typical use case is as follows.
     assert!(resut.is_err());
 ```
 
+## Errors
+The network returns different types of errors in different situations. See `client.rs` for more details.
+
 ## Implementation
 Behind the scenes, all clients send requests through a shared request queue. There is a dedicated thread taking requests
 from the queue and delegating the request to a set of workers. Each worker looks up the client, checks ACLs, finds the
