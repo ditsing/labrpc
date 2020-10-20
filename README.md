@@ -11,7 +11,7 @@ time.
 ## Usage
 `labrpc` allows creating a network that passes RPC calls. RPCs servers can be registered in the network, with a unique
 name. Clients can connect to servers via server names. Each client is identified by its name, so that they can
-bedisabled if and when needed.
+be disabled if and when needed.
 
 A typical use case is as follows.
 
