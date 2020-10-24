@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
 use std::time::{Duration, Instant};
 
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use parking_lot::Mutex;
 use rand::{thread_rng, Rng};
 
@@ -314,7 +314,7 @@ impl Network {
     fn new() -> Self {
         // The channel has infinite buffer, could OOM the server if there are
         // too many pending RPCs to be served.
-        let (tx, rx) = channel();
+        let (tx, rx) = crossbeam_channel::unbounded();
         Network {
             reliable: true,
             long_delays: false,
@@ -543,9 +543,7 @@ mod tests {
 
         // Send first request.
         let reply = futures::executor::block_on(
-            client
-                .clone()
-                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
         )?;
         assert_eq!(reply_data, reply.as_ref());
         assert_eq!(1, unlock(&network).get_total_rpc_count());
@@ -555,9 +553,7 @@ mod tests {
 
         // Send second request.
         let reply = futures::executor::block_on(
-            client
-                .clone()
-                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Client is blocked");
         assert_eq!(2, unlock(&network).get_total_rpc_count());
@@ -570,9 +566,7 @@ mod tests {
 
         // Send third request.
         let reply = futures::executor::block_on(
-            client
-                .clone()
-                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Client is blocked");
         assert_eq!(3, unlock(&network).get_total_rpc_count());
@@ -586,9 +580,7 @@ mod tests {
 
         // Send forth request.
         let reply = futures::executor::block_on(
-            client
-                .clone()
-                .call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
         );
         reply.expect_err("Network is shutdown");
         assert_eq!(3, unlock(&network).get_total_rpc_count());
@@ -619,7 +611,7 @@ mod tests {
 
                 let mut results = vec![];
                 for _ in 0..RPC_COUNT {
-                    let reply = client.clone().call_rpc(
+                    let reply = client.call_rpc(
                         JunkRpcs::Echo.name(),
                         RequestMessage::from_static(&[0x20, 0x17]),
                     );

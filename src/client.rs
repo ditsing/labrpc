@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use crossbeam_channel::Sender;
 
 use crate::{
     ClientIdentifier, ReplyMessage, RequestMessage, Result, RpcOnWire,
@@ -6,8 +6,6 @@ use crate::{
 };
 
 // Client interface, used by the RPC client.
-// Clone this interface when before calling `call_rpc`.
-#[derive(Clone)]
 pub struct Client {
     pub(crate) client: ClientIdentifier,
     pub(crate) server: ServerIdentifier,
@@ -29,28 +27,26 @@ impl Client {
     /// * Connection aborted: The client will not receive a reply because the
     /// the connection is closed by the network.
     pub async fn call_rpc(
-        self,
+        &self,
         service_method: String,
         request: RequestMessage,
     ) -> Result<ReplyMessage> {
         let (tx, rx) = futures::channel::oneshot::channel();
-        let (server, client, request_bus) =
-            (self.server, self.client, self.request_bus);
         let rpc = RpcOnWire {
-            client: client.clone(),
-            server,
+            client: self.client.clone(),
+            server: self.server.clone(),
             service_method,
             request,
             reply_channel: tx,
         };
 
-        request_bus.send(rpc).map_err(|e| {
+        self.request_bus.send(rpc).map_err(|e| {
             // The receiving end has been closed. Network connection is broken.
             std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
                 format!(
                     "Cannot send rpc, client {} is disconnected. {}",
-                    client, e
+                    self.client, e
                 ),
             )
         })?;
@@ -68,7 +64,7 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc::{channel, Sender};
+    use crossbeam_channel::{unbounded, Sender};
 
     use super::*;
 
@@ -86,7 +82,7 @@ mod tests {
     fn make_rpc_call_and_reply(
         reply: Result<ReplyMessage>,
     ) -> Result<ReplyMessage> {
-        let (tx, rx) = channel();
+        let (tx, rx) = unbounded();
 
         let handle = std::thread::spawn(move || make_rpc_call(tx));
 
@@ -130,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_call_rpc_remote_dropped() -> Result<()> {
-        let (tx, rx) = channel();
+        let (tx, rx) = unbounded();
 
         let handle = std::thread::spawn(move || make_rpc_call(tx));
 
@@ -152,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_call_rpc_not_connected() -> Result<()> {
-        let (tx, rx) = channel();
+        let (tx, rx) = unbounded();
         {
             drop(rx);
         }
@@ -169,13 +165,12 @@ mod tests {
 
     async fn make_rpc(client: Client) -> Result<ReplyMessage> {
         let request = RequestMessage::from_static(&[0x17, 0x20]);
-        let client = client.clone();
         client.call_rpc("hello".into(), request).await
     }
 
     #[test]
     fn test_call_across_threads() -> Result<()> {
-        let (tx, rx) = channel();
+        let (tx, rx) = unbounded();
         let rpc_future = {
             let client = Client {
                 client: "C".into(),
