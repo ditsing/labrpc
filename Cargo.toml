@@ -1,6 +1,6 @@
 [package]
 name = "labrpc"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Jing Yang <ditsing@gmail.com>"]
 description = "A RPC framework for testing"
 edition = "2018"
