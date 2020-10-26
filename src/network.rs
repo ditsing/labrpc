@@ -208,7 +208,7 @@ impl Network {
             if network.lock().dispatch(&rpc.client).is_err() {
                 let _ = rpc.reply_channel.send(Err(std::io::Error::new(
                     std::io::ErrorKind::ConnectionReset,
-                    format!("Network connection has been reset."),
+                    "Network connection has been reset.".to_owned(),
                 )));
                 return;
             }
