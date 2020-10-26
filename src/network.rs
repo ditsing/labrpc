@@ -142,7 +142,7 @@ impl Network {
     const LONG_REORDERING_BASE_DELAY_MILLIS: u64 = 200;
     const LONG_REORDERING_RANDOM_DELAY_BOUND_MILLIS: u64 = 2000;
 
-    const SHUTDOWN_DELAY: Duration = Duration::from_micros(20);
+    const SHUTDOWN_DELAY: Duration = Duration::from_micros(100);
 
     async fn delay_for_millis(milli_seconds: u64) {
         tokio::time::sleep(Duration::from_millis(milli_seconds)).await;
