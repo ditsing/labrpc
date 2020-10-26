@@ -343,7 +343,7 @@ mod tests {
         },
         make_aborting_rpc, make_echo_rpc,
     };
-    use crate::{ReplyMessage, RequestMessage, Result, RpcHandler};
+    use crate::{ReplyMessage, RequestMessage, Result};
 
     use super::*;
 
@@ -473,30 +473,20 @@ mod tests {
         Ok(())
     }
 
-    pub struct BlockingRpcHandler {
-        start_barrier: Arc<Barrier>,
-        end_barrier: Arc<Barrier>,
-    }
-
-    impl RpcHandler for BlockingRpcHandler {
-        fn call(&self, data: RequestMessage) -> ReplyMessage {
-            self.start_barrier.wait();
-            self.end_barrier.wait();
-            data.into()
-        }
-    }
-
     #[test]
     fn test_server_killed() -> Result<()> {
         let start_barrier = Arc::new(Barrier::new(2));
         let end_barrier = Arc::new(Barrier::new(2));
         let network = Network::run_daemon();
         let mut server = Server::make_server(TEST_SERVER);
+        let start_barrier_clone = start_barrier.clone();
+        let end_barrier_clone = end_barrier.clone();
         server.register_rpc_handler(
             "blocking".to_owned(),
-            Box::new(BlockingRpcHandler {
-                start_barrier: start_barrier.clone(),
-                end_barrier: end_barrier.clone(),
+            Box::new(move |args| {
+                start_barrier_clone.wait();
+                end_barrier_clone.wait();
+                args.into()
             }),
         )?;
 

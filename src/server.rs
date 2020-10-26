@@ -5,13 +5,10 @@ use parking_lot::Mutex;
 
 use crate::{ReplyMessage, RequestMessage, Result, ServerIdentifier};
 
-pub trait RpcHandler {
-    // Note this method is not async.
-    fn call(&self, data: RequestMessage) -> ReplyMessage;
-}
+pub type RpcHandler = dyn Fn(RequestMessage) -> ReplyMessage;
 
 struct ServerState {
-    rpc_handlers: std::collections::HashMap<String, Arc<Box<dyn RpcHandler>>>,
+    rpc_handlers: std::collections::HashMap<String, Arc<RpcHandler>>,
     rpc_count: std::cell::Cell<usize>,
 }
 
@@ -45,7 +42,7 @@ impl Server {
                 state.rpc_handlers.get(&service_method).cloned()
             };
             let response = match rpc_handler {
-                Some(rpc_handler) => Ok(rpc_handler.call(data)),
+                Some(rpc_handler) => Ok(rpc_handler(data)),
                 None => Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!(
@@ -71,7 +68,7 @@ impl Server {
     pub fn register_rpc_handler(
         &mut self,
         service_method: String,
-        rpc_handler: Box<dyn RpcHandler>,
+        rpc_handler: Box<RpcHandler>,
     ) -> Result<()> {
         let mut state = self.state.lock();
         let debug_service_method = service_method.clone();
@@ -115,7 +112,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
     use crate::test_utils::junk_server::{
-        make_test_server, EchoRpcHandler,
+        make_test_server,
         JunkRpcs::{Aborting, Echo},
     };
 
@@ -143,7 +140,7 @@ mod tests {
 
         let result = server.register_rpc_handler(
             "echo".to_string(),
-            Box::new(EchoRpcHandler {}),
+            Box::new(move |_| ReplyMessage::new()),
         );
 
         assert!(result.is_err());
