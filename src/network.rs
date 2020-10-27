@@ -181,11 +181,13 @@ impl Network {
             }
         }
 
+        let mut lookup_result = None;
         let reply = match server_result {
             // Call the server.
             Ok(server) => {
                 // Simulates the copy from network to server.
                 let data = rpc.request.clone();
+                lookup_result.replace(server.clone());
                 server.dispatch(rpc.service_method, data).await
             }
             // If the server does not exist, return error after a random delay.
@@ -204,8 +206,18 @@ impl Network {
         };
 
         if reply.is_ok() {
-            // Fail the RPC if the client has been disconnected.
-            if network.lock().dispatch(&rpc.client).is_err() {
+            // The lookup must have succeeded.
+            let lookup_result = lookup_result.unwrap();
+            // The server's address must have been changed, given that we take
+            // ownership of the server when it is registered.
+            let unchanged = match network.lock().dispatch(&rpc.client) {
+                Ok(server) => Arc::ptr_eq(&server, &lookup_result),
+                Err(_) => false,
+            };
+
+            // Fail the RPC if the client has been disconnected, or the server
+            // has been updated.
+            if !unchanged {
                 let _ = rpc.reply_channel.send(Err(std::io::Error::new(
                     std::io::ErrorKind::ConnectionReset,
                     "Network connection has been reset.".to_owned(),
