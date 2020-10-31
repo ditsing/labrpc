@@ -592,6 +592,37 @@ mod tests {
     }
 
     #[test]
+    fn test_unreliable() -> Result<()> {
+        let (network, _) = make_network_and_client();
+        network.lock().set_reliable(false);
+        const RPC_COUNT: usize = 1000;
+        let mut handles = vec![];
+        for i in 0..RPC_COUNT {
+            let client = network.lock().make_client(format!("{}-{}", TEST_CLIENT, i), TEST_SERVER);
+
+            let handle = std::thread::spawn(move || {
+                let reply = client.call_rpc(
+                    JunkRpcs::Echo.name(),
+                    RequestMessage::from_static(&[0x20, 0x17]),
+                );
+                futures::executor::block_on(reply)
+            });
+            handles.push(handle);
+        }
+        let mut success = 0;
+        for handle in handles {
+            let result = handle.join().expect("Thread join should not fail");
+            if result.is_ok() {
+                success += 1;
+            }
+        }
+        let success = success as f64;
+        assert!(success > RPC_COUNT as f64 * 0.75, "More than 15% RPC failed");
+        assert!(success < RPC_COUNT as f64 * 0.85, "Less than 5% RPC failed");
+        Ok(())
+    }
+
+    #[test]
     #[ignore = "Large tests with many threads"]
     fn test_many_requests() {
         let now = Instant::now();
