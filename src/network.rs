@@ -188,6 +188,7 @@ impl Network {
                 // Simulates the copy from network to server.
                 let data = rpc.request.clone();
                 lookup_result.replace(server.clone());
+                // No need to set timeout. The RPCs are not supposed to block.
                 server.dispatch(rpc.service_method, data).await
             }
             // If the server does not exist, return error after a random delay.
