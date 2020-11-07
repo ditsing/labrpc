@@ -269,8 +269,6 @@ impl Network {
 
         // Using tokio instead of futures-rs, because we need timer futures.
         let thread_pool = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(10)
-            .max_threads(20)
             .thread_name("network")
             .enable_time()
             .build()
