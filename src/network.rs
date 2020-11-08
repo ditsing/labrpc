@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use crossbeam_channel::{Receiver, Sender, RecvTimeoutError};
 use parking_lot::Mutex;
 use rand::{thread_rng, Rng};
 
@@ -289,17 +289,15 @@ impl Network {
                     stop_timer = Instant::now();
                 }
 
-                match rx.try_recv() {
+                match rx.recv_timeout(Self::SHUTDOWN_DELAY / 2) {
                     Ok(rpc) => {
                         thread_pool
                             .spawn(Self::serve_rpc(network.clone(), rpc));
                     }
                     // All senders have disconnected. This should never happen,
                     // since the network instance itself holds a sender.
-                    Err(TryRecvError::Disconnected) => break,
-                    Err(TryRecvError::Empty) => {
-                        std::thread::sleep(Self::SHUTDOWN_DELAY)
-                    }
+                    Err(RecvTimeoutError::Disconnected) => break,
+                    Err(RecvTimeoutError::Timeout) => {}
                 }
             }
 
