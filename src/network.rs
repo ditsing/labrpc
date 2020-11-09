@@ -160,6 +160,7 @@ impl Network {
                 network.long_delays,
             )
         };
+        mark_trace!(rpc.trace, dispatched);
 
         // Random delay before sending requests to server.
         if !reliable {
@@ -177,6 +178,7 @@ impl Network {
                     std::io::ErrorKind::TimedOut,
                     "Remote server did not respond in time.",
                 )));
+                mark_trace!(rpc.trace, served);
                 return;
             }
         }
@@ -189,6 +191,7 @@ impl Network {
                 let data = rpc.request.clone();
                 lookup_result.replace(server.clone());
                 // No need to set timeout. The RPCs are not supposed to block.
+                mark_trace!(rpc.trace, before_serving);
                 server.dispatch(rpc.service_method, data).await
             }
             // If the server does not exist, return error after a random delay.
@@ -205,6 +208,7 @@ impl Network {
                 Err(e)
             }
         };
+        mark_trace!(rpc.trace, after_serving);
 
         if reply.is_ok() {
             // The lookup must have succeeded.
@@ -223,6 +227,7 @@ impl Network {
                     std::io::ErrorKind::ConnectionReset,
                     "Network connection has been reset.".to_owned(),
                 )));
+                mark_trace!(rpc.trace, served);
                 return;
             }
             // Random drop again.
@@ -233,6 +238,7 @@ impl Network {
                     std::io::ErrorKind::TimedOut,
                     "The network did not send respond in time.",
                 )));
+                mark_trace!(rpc.trace, served);
                 return;
             } else if long_reordering {
                 let should_reorder = thread_rng().gen_ratio(
@@ -255,6 +261,7 @@ impl Network {
         if let Err(_e) = rpc.reply_channel.send(reply) {
             // TODO(ditsing): log and do nothing.
         }
+        mark_trace!(rpc.trace, served);
     }
 
     pub fn run_daemon() -> Arc<Mutex<Network>> {
@@ -291,6 +298,7 @@ impl Network {
 
                 match rx.recv_timeout(Self::SHUTDOWN_DELAY / 2) {
                     Ok(rpc) => {
+                        mark_trace!(rpc.trace, dequeue);
                         thread_pool
                             .spawn(Self::serve_rpc(network.clone(), rpc));
                     }
@@ -665,5 +673,30 @@ mod tests {
             handle.join().expect("All threads should succeed");
         }
         eprintln!("Many requests test took {:?}", now.elapsed());
+    }
+
+    // Typical request takes about 80ms.
+    #[cfg(feature = "tracing")]
+    #[test]
+    fn test_tracing() -> Result<()> {
+        let (_, client) = make_network_and_client();
+
+        let (response, trace) = futures::executor::block_on(
+            client.trace_rpc(JunkRpcs::Echo.name(), RequestMessage::new()),
+        );
+        assert!(response.is_ok());
+
+        assert!(trace.assemble > Duration::from_secs(0));
+        assert!(trace.enqueue > trace.assemble);
+        // Dequeue can happen before enqueue, as they are on different threads.
+        // assert!(trace.dequeue > trace.enqueue, "{:?}", trace);
+        assert!(trace.dispatched > trace.dequeue);
+        assert!(trace.before_serving > trace.dispatched);
+        assert!(trace.after_serving > trace.before_serving);
+        assert!(trace.served >= trace.after_serving, "{:?}", trace);
+        // Response can be before serve, as they are on different threads.
+        // assert!(trace.response >= trace.served);
+
+        Ok(())
     }
 }

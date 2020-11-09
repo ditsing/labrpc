@@ -4,6 +4,21 @@ extern crate futures;
 extern crate rand;
 extern crate tokio;
 
+#[cfg(feature = "tracing")]
+mod tracing;
+
+#[cfg(feature = "tracing")]
+macro_rules! mark_trace {
+    ($trace:expr, $name:ident) => {
+        $crate::mark!($trace, $name)
+    };
+}
+
+#[cfg(not(feature = "tracing"))]
+macro_rules! mark_trace {
+    ($trace:expr, $name:ident) => {};
+}
+
 mod client;
 mod network;
 mod server;
@@ -13,6 +28,8 @@ pub use client::Client;
 pub use network::Network;
 pub use server::RpcHandler;
 pub use server::Server;
+#[cfg(feature = "tracing")]
+pub use tracing::Trace;
 
 // Messages passed on network.
 struct RpcOnWire {
@@ -23,6 +40,8 @@ struct RpcOnWire {
     request: RequestMessage,
 
     reply_channel: futures::channel::oneshot::Sender<Result<ReplyMessage>>,
+    #[cfg(feature = "tracing")]
+    trace: tracing::TraceHolder,
 }
 
 pub type RequestMessage = bytes::Bytes;

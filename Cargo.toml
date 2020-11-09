@@ -13,3 +13,7 @@ futures = { version = "0.3.5", features = ["thread-pool"] }
 parking_lot = "0.11.0"
 rand = "0.7.3"
 tokio = { version = "0.3", features = ["rt-multi-thread", "time", "parking_lot"] }
+
+[features]
+default = []
+tracing = []

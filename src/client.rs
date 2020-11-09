@@ -1,5 +1,7 @@
 use crossbeam_channel::Sender;
 
+#[cfg(feature = "tracing")]
+use crate::tracing::{Trace, TraceHolder};
 use crate::{
     ClientIdentifier, ReplyMessage, RequestMessage, Result, RpcOnWire,
     ServerIdentifier,
@@ -31,6 +33,25 @@ impl Client {
         service_method: String,
         request: RequestMessage,
     ) -> Result<ReplyMessage> {
+        #[cfg(feature = "tracing")]
+        {
+            let trace = TraceHolder::make();
+            self.trace_and_call_rpc(service_method, request, trace)
+                .await
+        }
+        #[cfg(not(feature = "tracing"))]
+        self.trace_and_call_rpc(service_method, request).await
+    }
+
+    async fn trace_and_call_rpc(
+        &self,
+        service_method: String,
+        request: RequestMessage,
+        #[cfg(feature = "tracing")] trace: TraceHolder,
+    ) -> Result<ReplyMessage> {
+        #[cfg(feature = "tracing")]
+        let local_trace = trace.clone();
+
         let (tx, rx) = futures::channel::oneshot::channel();
         let rpc = RpcOnWire {
             client: self.client.clone(),
@@ -38,8 +59,11 @@ impl Client {
             service_method,
             request,
             reply_channel: tx,
+            #[cfg(feature = "tracing")]
+            trace,
         };
 
+        mark_trace!(local_trace, assemble);
         self.request_bus.send(rpc).map_err(|e| {
             // The receiving end has been closed. Network connection is broken.
             std::io::Error::new(
@@ -50,15 +74,34 @@ impl Client {
                 ),
             )
         })?;
+        mark_trace!(local_trace, enqueue);
 
-        rx.await.map_err(|e| {
+        let ret = rx.await.map_err(|e| {
             std::io::Error::new(
                 // The network closed our connection. The server might not even
                 // get a chance to see the request.
                 std::io::ErrorKind::ConnectionAborted,
                 format!("Network request is dropped: {}", e),
             )
-        })?
+        })?;
+        mark_trace!(local_trace, response);
+        ret
+    }
+
+    #[cfg(feature = "tracing")]
+    pub async fn trace_rpc(
+        &self,
+        service_method: String,
+        request: RequestMessage,
+    ) -> (Result<ReplyMessage>, Trace) {
+        let trace = TraceHolder::make();
+        let local_trace = trace.clone();
+
+        let response = self
+            .trace_and_call_rpc(service_method, request, trace)
+            .await;
+
+        (response, local_trace.extract())
     }
 }
 

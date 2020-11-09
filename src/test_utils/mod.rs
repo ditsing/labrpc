@@ -33,6 +33,8 @@ pub(crate) fn make_rpc<C: Into<String>, S: Into<String>>(
             service_method: service_method.name(),
             request: RequestMessage::copy_from_slice(data),
             reply_channel: tx,
+            #[cfg(feature = "tracing")]
+            trace: crate::tracing::TraceHolder::make(),
         },
         rx,
     )
