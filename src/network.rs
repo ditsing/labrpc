@@ -675,7 +675,7 @@ mod tests {
         eprintln!("Many requests test took {:?}", now.elapsed());
     }
 
-    // Typical request takes about 80ms.
+    // A typical request takes about 80ms.
     #[cfg(feature = "tracing")]
     #[test]
     fn test_tracing() -> Result<()> {
@@ -696,6 +696,27 @@ mod tests {
         assert!(trace.served >= trace.after_serving, "{:?}", trace);
         // Response can be before serve, as they are on different threads.
         // assert!(trace.response >= trace.served);
+
+        Ok(())
+    }
+
+    #[cfg(feature = "tracing")]
+    #[test]
+    #[ignore = "Large tests that runs for seconds"]
+    fn test_dispatch_delay() -> Result<()> {
+        let (_, client) = make_network_and_client();
+        const ROUND: usize = 100_000;
+
+        let mut dispatch_delay = 0;
+        for _ in 0..ROUND {
+            let (response, trace) = futures::executor::block_on(
+                client.trace_rpc(JunkRpcs::Echo.name(), RequestMessage::new()),
+            );
+            assert!(response.is_ok());
+            dispatch_delay += (trace.response - trace.assemble).as_nanos();
+        }
+        let avg_ms = (dispatch_delay as f64) / (ROUND as f64 * 1000.0);
+        eprintln!("The average RPC delay is {} ms", avg_ms);
 
         Ok(())
     }
