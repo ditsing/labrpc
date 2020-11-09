@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, Sender, RecvTimeoutError};
+use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use parking_lot::Mutex;
 use rand::{thread_rng, Rng};
 
@@ -595,7 +595,9 @@ mod tests {
         const RPC_COUNT: usize = 1000;
         let mut handles = vec![];
         for i in 0..RPC_COUNT {
-            let client = network.lock().make_client(format!("{}-{}", TEST_CLIENT, i), TEST_SERVER);
+            let client = network
+                .lock()
+                .make_client(format!("{}-{}", TEST_CLIENT, i), TEST_SERVER);
 
             let handle = std::thread::spawn(move || {
                 let reply = client.call_rpc(
@@ -614,7 +616,10 @@ mod tests {
             }
         }
         let success = success as f64;
-        assert!(success > RPC_COUNT as f64 * 0.75, "More than 15% RPC failed");
+        assert!(
+            success > RPC_COUNT as f64 * 0.75,
+            "More than 15% RPC failed"
+        );
         assert!(success < RPC_COUNT as f64 * 0.85, "Less than 5% RPC failed");
         Ok(())
     }
