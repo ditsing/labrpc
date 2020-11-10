@@ -705,18 +705,22 @@ mod tests {
     #[ignore = "Large tests that runs for seconds"]
     fn test_dispatch_delay() -> Result<()> {
         let (_, client) = make_network_and_client();
-        const ROUND: usize = 100_000;
+        const ROUND: u32 = 100_000;
 
-        let mut dispatch_delay = 0;
+        let start = Instant::now();
+        let mut dispatch_delay: Duration = Default::default();
         for _ in 0..ROUND {
             let (response, trace) = futures::executor::block_on(
                 client.trace_rpc(JunkRpcs::Echo.name(), RequestMessage::new()),
             );
             assert!(response.is_ok());
-            dispatch_delay += (trace.response - trace.assemble).as_nanos();
+            dispatch_delay += trace.response - trace.assemble;
         }
-        let avg_ms = (dispatch_delay as f64) / (ROUND as f64 * 1000.0);
-        eprintln!("The average RPC delay is {} ms", avg_ms);
+        eprintln!("The average RPC delay is {:?} ", dispatch_delay / ROUND);
+        eprintln!(
+            "The average client latency is {:?}",
+            start.elapsed() / ROUND
+        );
 
         Ok(())
     }
