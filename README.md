@@ -53,7 +53,8 @@ from the queue and delegating the request to a set of workers. Each worker looks
 right server, and calls the server. Workers also decides if the request should be dropped or delayed.
 
 ## Latency
-On average, each RPC takes about 60ms to travel through the network.
+On average, each RPC takes about 40ms to travel through the network.
 
-For unknown reasons, this implementation is only half as fast as the Go version, in the scenario where there is only one
-client which sends millions of requests. Adding more clients that behaves similarly does not decrease performance.
+This implementation is only half as fast as the Go version, in the scenario where there is only one client which sends
+millions of requests. About 2/3 of the latency is caused by context switching into the network thread pool and then the
+server thread pool.
