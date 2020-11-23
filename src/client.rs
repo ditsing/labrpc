@@ -76,6 +76,7 @@ impl Client {
         })?;
         mark_trace!(local_trace, enqueue);
 
+        #[allow(clippy::let_and_return)]
         let ret = rx.await.map_err(|e| {
             std::io::Error::new(
                 // The network closed our connection. The server might not even
