@@ -12,7 +12,7 @@ pub struct Client {
     pub(crate) client: ClientIdentifier,
     pub(crate) server: ServerIdentifier,
 
-    pub(crate) request_bus: Sender<RpcOnWire>,
+    pub(crate) request_bus: Sender<Option<RpcOnWire>>,
 }
 
 impl Client {
@@ -64,7 +64,7 @@ impl Client {
         };
 
         mark_trace!(local_trace, assemble);
-        self.request_bus.send(rpc).map_err(|e| {
+        self.request_bus.send(Some(rpc)).map_err(|e| {
             // The receiving end has been closed. Network connection is broken.
             std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
@@ -111,7 +111,7 @@ mod tests {
 
     use super::*;
 
-    fn make_rpc_call(tx: Sender<RpcOnWire>) -> Result<ReplyMessage> {
+    fn make_rpc_call(tx: Sender<Option<RpcOnWire>>) -> Result<ReplyMessage> {
         let client = Client {
             client: "C".into(),
             server: "S".into(),
@@ -129,7 +129,10 @@ mod tests {
 
         let handle = std::thread::spawn(move || make_rpc_call(tx));
 
-        let rpc = rx.recv().expect("The request message should arrive");
+        let rpc = rx
+            .recv()
+            .expect("The request message should arrive")
+            .expect("The request message should not be null");
         assert_eq!("C", &rpc.client);
         assert_eq!("S", &rpc.server);
         assert_eq!("hello", &rpc.service_method);
@@ -173,7 +176,10 @@ mod tests {
 
         let handle = std::thread::spawn(move || make_rpc_call(tx));
 
-        let rpc = rx.recv().expect("The request message should arrive");
+        let rpc = rx
+            .recv()
+            .expect("The request message should arrive")
+            .expect("The request message should not be null");
         drop(rpc.reply_channel);
 
         let reply = handle.join().expect("Rpc sending thread should succeed");
@@ -225,7 +231,10 @@ mod tests {
         std::thread::spawn(move || {
             let _ = futures::executor::block_on(rpc_future);
         });
-        let rpc = rx.recv().expect("The request message should arrive");
+        let rpc = rx
+            .recv()
+            .expect("The request message should arrive")
+            .expect("The request message should not be null");
         rpc.reply_channel
             .send(Ok(Default::default()))
             .expect("The reply channel should not be closed");

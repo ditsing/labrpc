@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
+use crossbeam_channel::{Receiver, RecvError, Sender};
 use parking_lot::Mutex;
 use rand::{thread_rng, Rng};
 
@@ -24,8 +24,8 @@ pub struct Network {
     servers: HashMap<ServerIdentifier, Arc<Server>>,
 
     // Network bus
-    request_bus: Sender<RpcOnWire>,
-    request_pipe: Option<Receiver<RpcOnWire>>,
+    request_bus: Sender<Option<RpcOnWire>>,
+    request_pipe: Option<Receiver<Option<RpcOnWire>>>,
 
     // Closing signal.
     keep_running: bool,
@@ -51,6 +51,9 @@ impl Network {
 
     pub fn stop(&mut self) {
         self.keep_running = false;
+        self.request_bus
+            .send(None)
+            .expect("Sending RPCs should never fail.");
     }
 
     pub fn stopped(&self) -> bool {
@@ -296,16 +299,16 @@ impl Network {
                     stop_timer = Instant::now();
                 }
 
-                match rx.recv_timeout(Self::SHUTDOWN_DELAY / 2) {
-                    Ok(rpc) => {
+                match rx.recv() {
+                    Ok(Some(rpc)) => {
                         mark_trace!(rpc.trace, dequeue);
                         thread_pool
                             .spawn(Self::serve_rpc(network.clone(), rpc));
                     }
+                    Ok(None) => break,
                     // All senders have disconnected. This should never happen,
                     // since the network instance itself holds a sender.
-                    Err(RecvTimeoutError::Disconnected) => break,
-                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvError) => break,
                 }
             }
 
@@ -387,7 +390,7 @@ mod tests {
         let sender = {
             let mut network = unlock(&network);
 
-            network.keep_running = false;
+            network.stop();
 
             network.request_bus.clone()
         };
@@ -395,7 +398,7 @@ mod tests {
             std::thread::sleep(Network::SHUTDOWN_DELAY)
         }
         let (rpc, _) = make_echo_rpc("client", "server", &[]);
-        let result = sender.send(rpc);
+        let result = sender.send(Some(rpc));
         assert!(
             result.is_err(),
             "Network is shutdown, requests should not be processed."
@@ -421,7 +424,7 @@ mod tests {
             network.request_bus.clone()
         };
 
-        let result = sender.send(rpc);
+        let result = sender.send(Some(rpc));
 
         assert!(
             result.is_ok(),
