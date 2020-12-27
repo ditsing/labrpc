@@ -168,7 +168,7 @@ impl Network {
         // Random delay before sending requests to server.
         if !reliable {
             let minor_delay =
-                thread_rng().gen_range(0, Self::MAX_MINOR_DELAY_MILLIS);
+                thread_rng().gen_range(0..Self::MAX_MINOR_DELAY_MILLIS);
             Self::delay_for_millis(minor_delay).await;
 
             // Random drop of a DROP_RATE / DROP_BASE chance.
@@ -199,14 +199,13 @@ impl Network {
             }
             // If the server does not exist, return error after a random delay.
             Err(e) => {
-                let long_delay = rand::thread_rng().gen_range(
-                    0,
-                    if long_delays {
-                        Self::MAX_LONG_DELAY_MILLIS
-                    } else {
-                        Self::MAX_SHORT_DELAY_MILLIS
-                    },
-                );
+                let long_delay_upper = if long_delays {
+                    Self::MAX_LONG_DELAY_MILLIS
+                } else {
+                    Self::MAX_SHORT_DELAY_MILLIS
+                };
+                let long_delay =
+                    rand::thread_rng().gen_range(0..long_delay_upper);
                 Self::delay_for_millis(long_delay).await;
                 Err(e)
             }
@@ -250,11 +249,10 @@ impl Network {
                 );
                 if should_reorder {
                     let long_delay_bound = thread_rng().gen_range(
-                        0,
-                        Self::LONG_REORDERING_RANDOM_DELAY_BOUND_MILLIS,
+                        0..Self::LONG_REORDERING_RANDOM_DELAY_BOUND_MILLIS,
                     );
                     let long_delay = Self::LONG_REORDERING_BASE_DELAY_MILLIS
-                        + thread_rng().gen_range(0, 1 + long_delay_bound);
+                        + thread_rng().gen_range(0..1 + long_delay_bound);
                     Self::delay_for_millis(long_delay).await;
                     // Falling through to send the result.
                 }
