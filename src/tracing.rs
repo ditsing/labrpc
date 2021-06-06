@@ -19,6 +19,13 @@ pub struct Trace {
     pub dispatched: Duration,
     /// The delay of when the request is about to be processed by the server.
     pub before_serving: Duration,
+    pub before_server_scheduling: Duration,
+    pub after_server_scheduling: Duration,
+    pub before_handling: Duration,
+    pub after_handling: Duration,
+    pub handler_response: Duration,
+    pub server_response: Duration,
+    pub after_server_response: Duration,
     /// The delay of when the request is served by the server.
     pub after_serving: Duration,
     /// The delay of when the network proxies the response from the server.
@@ -44,6 +51,13 @@ impl Trace {
             dequeue: Default::default(),
             dispatched: Default::default(),
             before_serving: Default::default(),
+            before_server_scheduling: Default::default(),
+            after_server_scheduling: Default::default(),
+            before_handling: Default::default(),
+            after_handling: Default::default(),
+            handler_response: Default::default(),
+            server_response: Default::default(),
+            after_server_response: Default::default(),
             after_serving: Default::default(),
             served: Default::default(),
             response: Default::default(),
@@ -54,7 +68,7 @@ impl Trace {
 // Clone is required because the client side code need to mark a trace
 // after sending an RPC.
 #[derive(Clone)]
-pub(crate) struct TraceHolder {
+pub struct TraceHolder {
     pub(crate) inner: Arc<Mutex<Trace>>,
 }
 

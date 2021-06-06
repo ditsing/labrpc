@@ -195,7 +195,18 @@ impl Network {
                 lookup_result.replace(server.clone());
                 // No need to set timeout. The RPCs are not supposed to block.
                 mark_trace!(rpc.trace, before_serving);
-                server.dispatch(rpc.service_method, data).await
+                #[cfg(not(feature = "tracing"))]
+                {
+                    server.dispatch(rpc.service_method, data).await
+                }
+                #[cfg(feature = "tracing")]
+                {
+                    let res = server
+                        .dispatch(rpc.service_method, data, rpc.trace.clone())
+                        .await;
+                    mark_trace!(rpc.trace, after_server_response);
+                    res
+                }
             }
             // If the server does not exist, return error after a random delay.
             Err(e) => {

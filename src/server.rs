@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
+#[cfg(feature = "tracing")]
+use crate::tracing::TraceHolder;
 use crate::{ReplyMessage, RequestMessage, Result, ServerIdentifier};
 
 pub type RpcHandler = dyn Fn(RequestMessage) -> ReplyMessage;
@@ -30,9 +32,13 @@ impl Server {
         self: Arc<Self>,
         service_method: String,
         data: RequestMessage,
+        #[cfg(feature = "tracing")] trace: TraceHolder,
     ) -> Result<ReplyMessage> {
         let (tx, rx) = futures::channel::oneshot::channel();
         let this = self.clone();
+        mark_trace!(trace, before_server_scheduling);
+        #[cfg(feature = "tracing")]
+        let trace_clone = trace.clone();
         this.thread_pool.spawn_ok(async move {
             let rpc_handler = {
                 // Blocking on a mutex in a thread pool. Sounds horrible, but
@@ -41,6 +47,7 @@ impl Server {
                 state.rpc_count.set(state.rpc_count.get() + 1);
                 state.rpc_handlers.get(&service_method).cloned()
             };
+            mark_trace!(trace_clone, before_handling);
             let response = match rpc_handler {
                 Some(rpc_handler) => Ok(rpc_handler(data)),
                 None => Err(std::io::Error::new(
@@ -51,18 +58,23 @@ impl Server {
                     ),
                 )),
             };
+            mark_trace!(trace_clone, after_handling);
             #[allow(clippy::redundant_pattern_matching)]
             if let Err(_) = tx.send(response) {
                 // Receiving end is dropped. Never mind.
                 // Do nothing.
             }
+            mark_trace!(trace_clone, handler_response);
         });
-        rx.await.map_err(|_e| {
+        mark_trace!(trace, after_server_scheduling);
+        let ret = rx.await.map_err(|_e| {
             std::io::Error::new(
                 std::io::ErrorKind::ConnectionReset,
                 format!("Remote server {} cancelled the RPC.", this.name),
             )
-        })?
+        })?;
+        mark_trace!(trace, server_response);
+        ret
     }
 
     pub fn register_rpc_handler(
