@@ -25,7 +25,6 @@ pub struct Network {
 
     // Network bus
     request_bus: Sender<Option<RpcOnWire>>,
-    request_pipe: Option<Receiver<Option<RpcOnWire>>>,
 
     // Closing signal.
     keep_running: bool,
@@ -266,11 +265,7 @@ impl Network {
     }
 
     pub fn run_daemon() -> Arc<Mutex<Network>> {
-        let mut network = Network::new();
-        let rx = network
-            .request_pipe
-            .take()
-            .expect("Newly created network should have a rx");
+        let (network, rx) = Network::new();
 
         // Using Mutex instead of RWLock, because most of the access are reads.
         let network = Arc::new(Mutex::new(network));
@@ -329,22 +324,22 @@ impl Network {
         self.rpc_count.set(self.rpc_count.get() + 1);
     }
 
-    fn new() -> Self {
+    fn new() -> (Self, Receiver<Option<RpcOnWire>>) {
         // The channel has infinite buffer, could OOM the server if there are
         // too many pending RPCs to be served.
         let (tx, rx) = crossbeam_channel::unbounded();
-        Network {
+        let network = Network {
             reliable: true,
             long_delays: false,
             long_reordering: false,
             clients: Default::default(),
             servers: Default::default(),
             request_bus: tx,
-            request_pipe: Some(rx),
             keep_running: true,
             stopped: Default::default(),
             rpc_count: std::cell::Cell::new(0),
-        }
+        };
+        (network, rx)
     }
 }
 
@@ -365,13 +360,9 @@ mod tests {
 
     use super::*;
 
-    fn make_network() -> Network {
-        Network::new()
-    }
-
     #[test]
     fn test_rpc_count_works() {
-        let network = make_network();
+        let (network, _) = Network::new();
         assert_eq!(0, network.get_total_rpc_count());
 
         network.increase_rpc_count();
