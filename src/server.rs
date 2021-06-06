@@ -18,6 +18,7 @@ pub struct Server {
     name: String,
     state: Mutex<ServerState>,
     thread_pool: futures::executor::ThreadPool,
+    interrupt: tokio::sync::Notify,
 }
 
 impl Unpin for Server {}
@@ -67,12 +68,24 @@ impl Server {
             mark_trace!(trace_clone, handler_response);
         });
         mark_trace!(trace, after_server_scheduling);
-        let ret = rx.await.map_err(|_e| {
-            std::io::Error::new(
+        let result = tokio::select! {
+            result = rx => Some(result),
+            _ = this.interrupt.notified() => None,
+        };
+        let ret = match result {
+            Some(Ok(ret)) => ret,
+            Some(Err(_)) => Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionReset,
                 format!("Remote server {} cancelled the RPC.", this.name),
-            )
-        })?;
+            )),
+            None => {
+                // Fail the RPC if the server has been terminated.
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionReset,
+                    "Network connection has been reset.".to_owned(),
+                ))
+            }
+        };
         mark_trace!(trace, server_response);
         ret
     }
@@ -102,6 +115,10 @@ impl Server {
         self.state.lock().rpc_count.get()
     }
 
+    pub fn interrupt(&self) {
+        self.interrupt.notify_waiters();
+    }
+
     pub fn make_server<S: Into<ServerIdentifier>>(name: S) -> Self {
         let state = Mutex::new(ServerState {
             rpc_handlers: std::collections::HashMap::new(),
@@ -117,6 +134,7 @@ impl Server {
             name,
             state,
             thread_pool,
+            interrupt: tokio::sync::Notify::new(),
         }
     }
 }

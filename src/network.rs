@@ -89,7 +89,10 @@ impl Network {
     }
 
     pub fn remove_server<S: AsRef<str>>(&mut self, server_name: S) {
-        self.servers.remove(server_name.as_ref());
+        let server = self.servers.remove(server_name.as_ref());
+        if let Some(server) = server {
+            server.interrupt();
+        }
     }
 
     pub fn get_rpc_count<S: AsRef<str>>(
@@ -186,13 +189,11 @@ impl Network {
             }
         }
 
-        let mut lookup_result = None;
         let reply = match server_result {
             // Call the server.
             Ok(server) => {
                 // Simulates the copy from network to server.
                 let data = rpc.request.clone();
-                lookup_result.replace(server.clone());
                 // No need to set timeout. The RPCs are not supposed to block.
                 mark_trace!(rpc.trace, before_serving);
                 #[cfg(not(feature = "tracing"))]
@@ -223,26 +224,13 @@ impl Network {
         };
         mark_trace!(rpc.trace, after_serving);
 
-        if reply.is_ok() {
-            // The lookup must have succeeded.
-            let lookup_result = lookup_result.unwrap();
-            // The server's address must have been changed, given that we take
-            // ownership of the server when it is registered.
-            let unchanged = match network.lock().dispatch(&rpc.client) {
-                Ok(server) => Arc::ptr_eq(&server, &lookup_result),
-                Err(_) => false,
-            };
+        let client = &rpc.client;
+        let reply = reply.and_then(|reply| {
+            // Fail the RPC if the client has been disconnected.
+            network.lock().dispatch(client).map(|_| reply)
+        });
 
-            // Fail the RPC if the client has been disconnected, or the server
-            // has been updated.
-            if !unchanged {
-                let _ = rpc.reply_channel.send(Err(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionReset,
-                    "Network connection has been reset.".to_owned(),
-                )));
-                mark_trace!(rpc.trace, served);
-                return;
-            }
+        if reply.is_ok() {
             // Random drop again.
             if !reliable
                 && thread_rng().gen_ratio(Self::DROP_RATE.0, Self::DROP_RATE.1)
@@ -534,7 +522,10 @@ mod tests {
 
         let err = reply
             .expect_err("Client should receive error after server is killed");
-        assert_eq!(std::io::ErrorKind::ConnectionReset, err.kind());
+        assert!(
+            std::io::ErrorKind::ConnectionReset == err.kind()
+                || std::io::ErrorKind::NotFound == err.kind()
+        );
 
         Ok(())
     }
