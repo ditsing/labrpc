@@ -235,6 +235,7 @@ impl Network {
             if !reliable
                 && thread_rng().gen_ratio(Self::DROP_RATE.0, Self::DROP_RATE.1)
             {
+                // TODO(ditsing): add a real delay to random drop like above.
                 let _ = rpc.reply_channel.send(Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "The network did not send respond in time.",
