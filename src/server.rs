@@ -11,7 +11,7 @@ pub type RpcHandler = dyn Fn(RequestMessage) -> ReplyMessage;
 
 struct ServerState {
     rpc_handlers: std::collections::HashMap<String, Arc<RpcHandler>>,
-    rpc_count: std::cell::Cell<usize>,
+    rpc_count: usize,
 }
 
 pub struct Server {
@@ -44,8 +44,8 @@ impl Server {
             let rpc_handler = {
                 // Blocking on a mutex in a thread pool. Sounds horrible, but
                 // in fact quite safe, given that the critical section is short.
-                let state = self.state.lock();
-                state.rpc_count.set(state.rpc_count.get() + 1);
+                let mut state = self.state.lock();
+                state.rpc_count += 1;
                 state.rpc_handlers.get(&service_method).cloned()
             };
             mark_trace!(trace_clone, before_handling);
@@ -112,7 +112,7 @@ impl Server {
     }
 
     pub fn rpc_count(&self) -> usize {
-        self.state.lock().rpc_count.get()
+        self.state.lock().rpc_count
     }
 
     pub fn interrupt(&self) {
@@ -122,7 +122,7 @@ impl Server {
     pub fn make_server<S: Into<ServerIdentifier>>(name: S) -> Self {
         let state = Mutex::new(ServerState {
             rpc_handlers: std::collections::HashMap::new(),
-            rpc_count: std::cell::Cell::new(0),
+            rpc_count: 0,
         });
         let name = name.into();
         let thread_pool = futures::executor::ThreadPool::builder()
