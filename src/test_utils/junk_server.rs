@@ -9,6 +9,7 @@ pub const NON_CLIENT: &str = &"non-client";
 pub enum JunkRpcs {
     Echo,
     Aborting,
+    #[allow(dead_code)]
     Woods,
 }
 

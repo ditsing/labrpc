@@ -495,7 +495,7 @@ mod tests {
             Box::new(move |args| {
                 start_barrier_clone.wait();
                 end_barrier_clone.wait();
-                args.into()
+                args
             }),
         )?;
 
@@ -582,7 +582,7 @@ mod tests {
 
         // Send forth request.
         let reply = futures::executor::block_on(
-            client.call_rpc(JunkRpcs::Echo.name(), request.clone()),
+            client.call_rpc(JunkRpcs::Echo.name(), request),
         );
         reply.expect_err("Network is shutdown");
         assert_eq!(3, unlock(&network).get_total_rpc_count());
