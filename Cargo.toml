@@ -12,10 +12,14 @@ homepage = "https://github.com/ditsing/labrpc"
 [dependencies]
 bytes = "1.0"
 crossbeam-channel = "0.5.1"
-futures = { version = "0.3.15", default-features = false, features = ["thread-pool"] }
+futures = { version = "0.3.15", default-features = false }
 parking_lot = "0.11.1"
 rand = "0.8.0"
 tokio = { version = "1.7", features = ["macros", "rt-multi-thread", "sync", "time", "parking_lot"] }
+
+[dev-dependencies]
+futures = { version = "0.3.15", default-features = false, features = ["thread-pool"] }
+lazy_static = "1.4.0"
 
 [features]
 default = []

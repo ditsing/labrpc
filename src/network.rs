@@ -25,6 +25,8 @@ pub struct Network {
 
     // Network bus
     request_bus: Sender<Option<RpcOnWire>>,
+    // Server thread pool,
+    server_pool: tokio::runtime::Runtime,
 
     // Closing signal.
     keep_running: bool,
@@ -82,8 +84,9 @@ impl Network {
     pub fn add_server<S: Into<ServerIdentifier>>(
         &mut self,
         server_name: S,
-        server: Server,
+        mut server: Server,
     ) {
+        server.use_pool(self.server_pool.handle().clone());
         self.servers.insert(server_name.into(), Arc::new(server));
     }
 
@@ -325,6 +328,11 @@ impl Network {
     }
 
     fn new() -> (Self, Receiver<Option<RpcOnWire>>) {
+        // Server thread pool
+        let server_pool = tokio::runtime::Builder::new_multi_thread()
+            .thread_name("server-pool")
+            .build()
+            .expect("Creating server thread pool should not fail");
         // The channel has infinite buffer, could OOM the server if there are
         // too many pending RPCs to be served.
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -335,6 +343,7 @@ impl Network {
             clients: Default::default(),
             servers: Default::default(),
             request_bus: tx,
+            server_pool,
             keep_running: true,
             stopped: Default::default(),
             rpc_count: std::cell::Cell::new(0),

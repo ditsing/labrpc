@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry::Vacant;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -18,7 +18,7 @@ struct ServerState {
 pub struct Server {
     name: String,
     state: Mutex<ServerState>,
-    thread_pool: futures::executor::ThreadPool,
+    thread_pool: Option<tokio::runtime::Handle>,
     interrupt: tokio::sync::Notify,
 }
 
@@ -29,19 +29,17 @@ unsafe impl Send for Server {}
 unsafe impl Sync for Server {}
 
 impl Server {
-    const THREAD_POOL_SIZE: usize = 4;
-    pub async fn dispatch(
+    pub(crate) async fn dispatch(
         self: Arc<Self>,
         service_method: String,
         data: RequestMessage,
         #[cfg(feature = "tracing")] trace: TraceHolder,
     ) -> Result<ReplyMessage> {
-        let (tx, rx) = futures::channel::oneshot::channel();
         let this = self.clone();
         mark_trace!(trace, before_server_scheduling);
         #[cfg(feature = "tracing")]
         let trace_clone = trace.clone();
-        this.thread_pool.spawn_ok(async move {
+        let result = this.thread_pool.as_ref().unwrap().spawn(async move {
             let rpc_handler = {
                 // Blocking on a mutex in a thread pool. Sounds horrible, but
                 // in fact quite safe, given that the critical section is short.
@@ -52,13 +50,7 @@ impl Server {
             mark_trace!(trace_clone, before_handling);
             let response = match rpc_handler {
                 Some(rpc_handler) => {
-                    match catch_unwind(AssertUnwindSafe(|| rpc_handler(data))) {
-                        Ok(result) => Ok(result),
-                        Err(_) => {
-                            drop(tx);
-                            return;
-                        }
-                    }
+                    Ok(catch_unwind(AssertUnwindSafe(|| rpc_handler(data))))
                 }
                 None => Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
@@ -69,16 +61,15 @@ impl Server {
                 )),
             };
             mark_trace!(trace_clone, after_handling);
-            #[allow(clippy::redundant_pattern_matching)]
-            if let Err(_) = tx.send(response) {
-                // Receiving end is dropped. Never mind.
-                // Do nothing.
-            }
-            mark_trace!(trace_clone, handler_response);
+            return match response {
+                Ok(Ok(response)) => Ok(response),
+                Ok(Err(e)) => resume_unwind(e),
+                Err(e) => Err(e),
+            };
         });
         mark_trace!(trace, after_server_scheduling);
         let result = tokio::select! {
-            result = rx => Some(result),
+            result = result => Some(result),
             _ = this.interrupt.notified() => None,
         };
         let ret = match result {
@@ -133,18 +124,16 @@ impl Server {
             rpc_handlers: std::collections::HashMap::new(),
             rpc_count: 0,
         });
-        let name = name.into();
-        let thread_pool = futures::executor::ThreadPool::builder()
-            .name_prefix(name.clone())
-            .pool_size(Self::THREAD_POOL_SIZE)
-            .create()
-            .expect("Creating thread pools should not fail");
         Self {
-            name,
+            name: name.into(),
             state,
-            thread_pool,
+            thread_pool: None,
             interrupt: tokio::sync::Notify::new(),
         }
+    }
+
+    pub(crate) fn use_pool(&mut self, thread_pool: tokio::runtime::Handle) {
+        self.thread_pool = Some(thread_pool);
     }
 }
 

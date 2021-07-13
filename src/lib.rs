@@ -1,6 +1,5 @@
 extern crate bytes;
 extern crate crossbeam_channel;
-extern crate futures;
 extern crate rand;
 extern crate tokio;
 

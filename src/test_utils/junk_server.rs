@@ -1,3 +1,5 @@
+use lazy_static::lazy_static;
+
 use crate::Server;
 
 pub const TEST_SERVER: &str = &"test-server";
@@ -42,5 +44,13 @@ pub fn make_test_server() -> Server {
             Box::new(move |_| panic!("Aborting rpc...")),
         )
         .expect("Registering the second RPC handler should not fail");
+    lazy_static! {
+        static ref DEFAULT_RUNTIME: tokio::runtime::Runtime =
+            tokio::runtime::Builder::new_multi_thread()
+                .build()
+                .expect("Build server default runtime should not fail");
+    }
+    server.use_pool(DEFAULT_RUNTIME.handle().clone());
+
     server
 }

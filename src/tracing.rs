@@ -23,7 +23,6 @@ pub struct Trace {
     pub after_server_scheduling: Duration,
     pub before_handling: Duration,
     pub after_handling: Duration,
-    pub handler_response: Duration,
     pub server_response: Duration,
     pub after_server_response: Duration,
     /// The delay of when the request is served by the server.
@@ -55,7 +54,6 @@ impl Trace {
             after_server_scheduling: Default::default(),
             before_handling: Default::default(),
             after_handling: Default::default(),
-            handler_response: Default::default(),
             server_response: Default::default(),
             after_server_response: Default::default(),
             after_serving: Default::default(),
