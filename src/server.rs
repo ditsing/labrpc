@@ -1,4 +1,5 @@
 use std::collections::hash_map::Entry::Vacant;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -50,7 +51,15 @@ impl Server {
             };
             mark_trace!(trace_clone, before_handling);
             let response = match rpc_handler {
-                Some(rpc_handler) => Ok(rpc_handler(data)),
+                Some(rpc_handler) => {
+                    match catch_unwind(AssertUnwindSafe(|| rpc_handler(data))) {
+                        Ok(result) => Ok(result),
+                        Err(_) => {
+                            drop(tx);
+                            return;
+                        }
+                    }
+                }
                 None => Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!(
@@ -224,11 +233,10 @@ mod tests {
     }
 
     #[test]
-    fn test_server_survives_3_rpc_errors() -> Result<()> {
+    fn test_server_survives_30_rpc_errors() -> Result<()> {
         let server = make_arc_test_server();
 
-        // TODO(ditsing): server hangs after the 4th RPC error.
-        for _ in 0..3 {
+        for _ in 0..30 {
             let server_clone = server.clone();
             let _ = futures::executor::block_on(
                 server_clone.dispatch(Aborting.name(), RequestMessage::new()),
