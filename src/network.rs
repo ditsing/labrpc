@@ -635,7 +635,7 @@ mod tests {
         let (network, _) = make_network_and_client();
         let barrier = Arc::new(Barrier::new(THREAD_COUNT + 1));
         const THREAD_COUNT: usize = 200;
-        const RPC_COUNT: usize = 100;
+        const RPC_COUNT: usize = 10000;
 
         let mut handles = vec![];
         for i in 0..THREAD_COUNT {
