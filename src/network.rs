@@ -668,6 +668,10 @@ mod tests {
             handle.join().expect("All threads should succeed");
         }
         eprintln!("Many requests test took {:?}", now.elapsed());
+        eprintln!(
+            "The average RPC latency is {:?}",
+            now.elapsed() / (RPC_COUNT as u32)
+        );
     }
 
     // A typical request takes about 80ms.
