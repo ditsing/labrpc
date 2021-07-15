@@ -165,6 +165,19 @@ mod tests {
         Arc::new(make_test_server())
     }
 
+    fn dispatch(
+        server: Arc<Server>,
+        service_method: String,
+        data: RequestMessage,
+    ) -> Result<ReplyMessage> {
+        futures::executor::block_on(server.dispatch(
+            service_method,
+            data,
+            #[cfg(feature = "tracing")]
+            TraceHolder::make(),
+        ))
+    }
+
     #[test]
     fn test_register_rpc_handler() -> Result<()> {
         let server = make_test_server();
@@ -191,13 +204,13 @@ mod tests {
     fn test_serve_rpc() -> Result<()> {
         let server = make_arc_test_server();
 
-        let reply = server.dispatch(
+        let reply = dispatch(
+            server,
             "echo".to_string(),
             RequestMessage::from_static(&[0x08, 0x07]),
-        );
-        let result = futures::executor::block_on(reply)?;
+        )?;
 
-        assert_eq!(ReplyMessage::from_static(&[0x07, 0x08]), result);
+        assert_eq!(ReplyMessage::from_static(&[0x07, 0x08]), reply);
         Ok(())
     }
 
@@ -205,8 +218,9 @@ mod tests {
     fn test_rpc_not_found() -> Result<()> {
         let server = make_arc_test_server();
 
-        let reply = server.dispatch("acorn".to_string(), RequestMessage::new());
-        match futures::executor::block_on(reply) {
+        let reply =
+            dispatch(server, "acorn".to_string(), RequestMessage::new());
+        match reply {
             Ok(_) => panic!("acorn service is not registered."),
             Err(e) => assert_eq!(e.kind(), std::io::ErrorKind::InvalidInput),
         }
@@ -217,9 +231,7 @@ mod tests {
     fn test_rpc_error() -> Result<()> {
         let server = make_arc_test_server();
 
-        let reply = futures::executor::block_on(
-            server.dispatch(Aborting.name(), RequestMessage::new()),
-        );
+        let reply = dispatch(server, Aborting.name(), RequestMessage::new());
 
         assert_eq!(
             reply
@@ -238,16 +250,17 @@ mod tests {
 
         for _ in 0..30 {
             let server_clone = server.clone();
-            let _ = futures::executor::block_on(
-                server_clone.dispatch(Aborting.name(), RequestMessage::new()),
-            );
+            let _ =
+                dispatch(server_clone, Aborting.name(), RequestMessage::new());
         }
 
-        let reply = server
-            .dispatch(Echo.name(), RequestMessage::from_static(&[0x08, 0x07]));
-        let result = futures::executor::block_on(reply)?;
+        let reply = dispatch(
+            server,
+            Echo.name(),
+            RequestMessage::from_static(&[0x08, 0x07]),
+        )?;
 
-        assert_eq!(ReplyMessage::from_static(&[0x07, 0x08]), result);
+        assert_eq!(ReplyMessage::from_static(&[0x07, 0x08]), reply);
 
         Ok(())
     }
