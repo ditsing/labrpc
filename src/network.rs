@@ -267,6 +267,8 @@ impl Network {
         mark_trace!(rpc.trace, served);
     }
 
+    const WORKER_THREADS: usize = 16;
+
     pub fn run_daemon() -> Arc<Mutex<Network>> {
         let (network, rx) = Network::new();
 
@@ -275,6 +277,7 @@ impl Network {
 
         // Using tokio instead of futures-rs, because we need timer futures.
         let thread_pool = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(Self::WORKER_THREADS)
             .thread_name("network")
             .enable_time()
             .build()
@@ -665,6 +668,9 @@ mod tests {
                     results.push(reply);
                 }
                 for result in results {
+                    // Futures executor is used instead of tokio executor,
+                    // because it uses std::thread::park(), which is more
+                    // straightforward and faster than mutex + condvar.
                     futures::executor::block_on(result)
                         .expect("All futures should succeed");
                 }

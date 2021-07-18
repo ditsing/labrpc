@@ -39,7 +39,7 @@ impl Server {
         mark_trace!(trace, before_server_scheduling);
         #[cfg(feature = "tracing")]
         let trace_clone = trace.clone();
-        let result = this.thread_pool.as_ref().unwrap().spawn(async move {
+        let runner = move || {
             let rpc_handler = {
                 // Blocking on a mutex in a thread pool. Sounds horrible, but
                 // in fact quite safe, given that the critical section is short.
@@ -66,7 +66,13 @@ impl Server {
                 Ok(Err(e)) => resume_unwind(e),
                 Err(e) => Err(e),
             };
-        });
+        };
+        let thread_pool = this.thread_pool.as_ref().unwrap();
+        // Using spawn() instead of spawn_blocking(), because the spawn() is
+        // better at handling a large number of small workloads. Running
+        // blocking code on async runner is fine, since all of the tasks we run
+        // on this pool are blocking (for a limited time).
+        let result = thread_pool.spawn(async { runner() });
         mark_trace!(trace, after_server_scheduling);
         let result = tokio::select! {
             result = result => Some(result),
