@@ -31,11 +31,11 @@ pub fn make_test_server() -> Server {
     server
         .register_rpc_handler(
             JunkRpcs::Echo.name(),
-            Box::new(move |request| {
+            move |request: bytes::Bytes| {
                 let mut reply = bytes::BytesMut::from(request.as_ref());
                 reply.reverse();
                 reply.freeze()
-            }),
+            },
         )
         .expect("Registering the first RPC handler should not fail");
     server
