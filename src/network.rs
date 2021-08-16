@@ -335,6 +335,7 @@ impl Network {
     fn new() -> (Self, Receiver<Option<RpcOnWire>>) {
         // Server thread pool
         let server_pool = tokio::runtime::Builder::new_multi_thread()
+            .enable_time()
             .thread_name("server-pool")
             .build()
             .expect("Creating server thread pool should not fail");
