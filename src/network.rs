@@ -267,6 +267,8 @@ impl Network {
         mark_trace!(rpc.trace, served);
     }
 
+    // 8 worker threads can handle the load of 20 clients of KV server
+    // with a 1-second deadline.
     const WORKER_THREADS: usize = 16;
 
     pub fn run_daemon() -> Arc<Mutex<Network>> {
