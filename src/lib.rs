@@ -1,8 +1,3 @@
-extern crate bytes;
-extern crate crossbeam_channel;
-extern crate rand;
-extern crate tokio;
-
 #[cfg(feature = "tracing")]
 mod tracing;
 
