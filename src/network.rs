@@ -92,6 +92,8 @@ impl Network {
 
     pub fn remove_server<S: AsRef<str>>(&mut self, server_name: S) {
         let server = self.servers.remove(server_name.as_ref());
+        // Note: Requests received before the removal, but has not yet started
+        // waiting on the server to return might fall through the crack.
         if let Some(server) = server {
             server.interrupt();
         }
@@ -530,7 +532,7 @@ mod tests {
         let err = reply
             .expect_err("Client should receive error after server is killed");
         assert!(
-            std::io::ErrorKind::ConnectionReset == err.kind()
+            std::io::ErrorKind::Interrupted == err.kind()
                 || std::io::ErrorKind::NotFound == err.kind()
         );
 

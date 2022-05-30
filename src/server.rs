@@ -120,14 +120,15 @@ impl Server {
         let ret = match result {
             Some(Ok(ret)) => ret,
             Some(Err(_)) => Err(std::io::Error::new(
+                // The future panicked or was cancelled in the thread pool.
                 std::io::ErrorKind::ConnectionReset,
                 format!("Remote server {} cancelled the RPC.", this.name),
             )),
             None => {
                 // Fail the RPC if the server has been terminated.
                 Err(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionReset,
-                    "Network connection has been reset.".to_owned(),
+                    std::io::ErrorKind::Interrupted,
+                    "The server has been forced to shutdown.".to_owned(),
                 ))
             }
         };
@@ -297,6 +298,29 @@ mod tests {
             std::io::ErrorKind::ConnectionReset,
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_serve_interrupted() -> Result<()> {
+        let server = make_arc_test_server();
+        // We cannot use `notify_waiters()` because it requires that tasks are
+        // already waiting when this function is called.
+        server.interrupt.notify_one();
+
+        let reply = dispatch(
+            server,
+            "echo".to_string(),
+            RequestMessage::from_static(&[0x08, 0x07]),
+        );
+
+        assert_eq!(
+            reply
+                .err()
+                .expect("Interrupted server should return error")
+                .kind(),
+            std::io::ErrorKind::Interrupted,
+        );
         Ok(())
     }
 
